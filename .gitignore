@@ -1,0 +1,27 @@
+# Virtual environment
+venv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Collected data (students record their own)
+data/raw/*
+!data/raw/.gitkeep
+
+# Generated inspection plots
+data/inspect/*
+!data/inspect/.gitkeep
+
+# Trained models (students train their own)
+models/*
+!models/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini

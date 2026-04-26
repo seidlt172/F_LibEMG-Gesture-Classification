@@ -1,0 +1,7 @@
+libemg
+mindrove
+numpy
+matplotlib
+scikit-learn
+pyqtgraph
+PyQt5
