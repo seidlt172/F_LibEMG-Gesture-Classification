@@ -53,6 +53,10 @@ UDP_PORT = 12345
 # ── Poll interval (seconds) ──
 POLL_INTERVAL = 0.010  # 10 ms → ~100 polls/sec, well above 500 Hz sample rate
 
+# ── Battery UDP output (separate port so EMG stream is unchanged) ──
+BATTERY_UDP_PORT    = 12346
+BATTERY_REPORT_SECS = 5.0   # send battery level every 5 seconds
+
 
 def build_board():
     params = MindRoveInputParams()
@@ -77,7 +81,8 @@ def main():
     BoardShim.enable_dev_board_logger()
 
     board = None
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock         = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    battery_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     try:
         print("[1/3] Creating board connection...")
@@ -108,13 +113,24 @@ def main():
         print()
         print(f"  Sampling rate : {fs} Hz")
         print(f"  EMG channels  : {emg_channels}  ({len(emg_channels)} ch)")
+
+        # Battery channel (may be empty on some firmware versions)
+        try:
+            battery_channels = BoardShim.get_battery_channel(board_id)
+            battery_ch = battery_channels if isinstance(battery_channels, int) else battery_channels[0]
+            print(f"  Battery ch    : {battery_ch}")
+        except Exception:
+            battery_ch = None
+            print("  Battery ch    : not available")
+
         print()
         print("  Streaming to LibEMG... (Ctrl+C to stop)")
         print("-" * 55)
 
-        packets_sent = 0
-        samples_sent = 0
-        report_every = 200  # print a status line every N packets
+        packets_sent      = 0
+        samples_sent      = 0
+        last_battery_time = 0.0
+        report_every      = 200
 
         while True:
             count = board.get_board_data_count()
@@ -137,6 +153,18 @@ def main():
 
             packets_sent += 1
             samples_sent += n_samples
+
+            # ── Battery reporting (every BATTERY_REPORT_SECS seconds) ──
+            now = time.time()
+            if battery_ch is not None and (now - last_battery_time) >= BATTERY_REPORT_SECS:
+                try:
+                    batt_data = board.get_current_board_data(1)
+                    batt_val  = float(batt_data[battery_ch, -1])
+                    payload   = pickle.dumps({'type': 'battery', 'value': batt_val})
+                    battery_sock.sendto(payload, (UDP_HOST, BATTERY_UDP_PORT))
+                    last_battery_time = now
+                except Exception:
+                    pass
 
             if packets_sent % report_every == 0:
                 print(
@@ -161,6 +189,7 @@ def main():
     finally:
         print("Cleaning up...")
         sock.close()
+        battery_sock.close()
         if board is not None:
             try:
                 if board.is_prepared():

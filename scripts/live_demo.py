@@ -31,7 +31,13 @@ from libemg.emg_predictor import EMGClassifier
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 
-GESTURE_NAMES = {0: 'Fist', 1: 'Open Hand', 2: 'Index Point'}
+GESTURE_NAMES = {
+    0: "Rest            (keine Aktion)",
+    1: "Annehmen        (Daumen hoch)",
+    2: "Ablehnen/Nav    (Swipe)",
+    3: "Regulieren      (Handgelenk drehen)",
+    4: "Zeigen/Tippen   (nur Zeigefinger gestreckt, restliche Finger eingekrallt)",
+}
 
 WINDOW_SIZE             = 200   # must match training notebook
 FEATURE_GROUP           = 'HTD' # must match training notebook

@@ -12,26 +12,34 @@ You need to edit **two files** and re-run the training notebook.
 
 ```python
 GESTURES = {
-    0: "Fist        (close ALL fingers firmly into a fist)",
-    1: "Open Hand   (spread fingers wide, palm facing forward)",
-    2: "Index Point (extend index finger only, curl the rest)",
-    3: "Wrist Flexion (bend wrist downward, fingers relaxed)",  # ← new
+    0: "Rest            (alle Finger locker eingeklappt, Hand entspannt am Lenkrad)",
+    1: "Daumen hoch     (Faust schließen, nur Daumen gestreckt nach oben)",
+    2: "Swipe           (alle Finger zusammen, Handgelenk zügig seitlich schwenken)",
+    3: "Handgelenk drehen (Unterarm rotieren pro/supination, Finger locker gestreckt)",
+    4: "Zeigen/Tippen   (nur Zeigefinger gestreckt, restliche Finger eingekrallt)",
 }
 ```
 
 The key (3) becomes the folder name (`gesture_3`) and the class label. The string is the prompt shown during collection.
 
-**2. `scripts/live_demo.py`** — add the same ID to `GESTURE_NAMES` (line ~24):
+**2. `scripts/live_demo.py`** — add the same ID to `GESTURE_NAMES` (line ~34):
 
 ```python
-GESTURE_NAMES = {0: 'Fist', 1: 'Open Hand', 2: 'Index Point', 3: 'Wrist Flexion'}
+GESTURE_NAMES = {
+    0: "Rest            (keine Aktion)",
+    1: "Annehmen        (Daumen hoch)",
+    2: "Ablehnen/Nav    (Swipe)",
+    3: "Regulieren      (Handgelenk drehen)",
+    4: "Zeigen/Tippen   (nur Zeigefinger gestreckt, restliche Finger eingekrallt)",
+}
 ```
 
 **3. Re-run the notebook.** No changes needed there — it auto-discovers all `gesture_*` folders in `data/raw/`.
 
 **Tips for choosing gestures:**
+
 - Pick gestures that use different muscle groups (e.g. flexors vs extensors)
-- Avoid gestures that feel similar when you hold them — if *you* can't tell them apart, the EMG won't either
+- Avoid gestures that feel similar when you hold them — if _you_ can't tell them apart, the EMG won't either
 - More gestures = more data needed. Collect at least 10 reps per gesture.
 
 ---
@@ -55,12 +63,12 @@ clf = EMGClassifier(GradientBoostingClassifier(n_estimators=100))
 
 **LibEMG docs:** [EMG Prediction — Classifiers](https://libemg.github.io/libemg/documentation/prediction/prediction.html)
 
-| Classifier | When to try it |
-|---|---|
-| `LDA` | Default. Fast, works well with small data. Start here. |
-| `SVM` | When LDA accuracy is low. Handles non-linear boundaries. |
-| `KNN` | Simple baseline. Sensitive to the number of training samples. |
-| `RF` | Robust to noise, but can overfit with few reps. |
+| Classifier | When to try it                                                |
+| ---------- | ------------------------------------------------------------- |
+| `LDA`      | Default. Fast, works well with small data. Start here.        |
+| `SVM`      | When LDA accuracy is low. Handles non-linear boundaries.      |
+| `KNN`      | Simple baseline. Sensitive to the number of training samples. |
+| `RF`       | Robust to noise, but can overfit with few reps.               |
 
 ---
 
@@ -90,6 +98,7 @@ print(fe.get_feature_groups())    # predefined groups
 **LibEMG docs:** [Feature Extraction](https://libemg.github.io/libemg/documentation/features/features.html)
 
 **Key feature groups:**
+
 - `HTD` — Hudgins time-domain (MAV, ZC, SSC, WL). Default, widely used, fast.
 - `LS9` — 9 features designed for low-sampling-rate devices. Good for robustness.
 - `TDPSD` — Time-domain power spectral descriptors. More features, sometimes better accuracy.
@@ -120,11 +129,13 @@ The most important preprocessing step is **DC offset removal**. The MindRove arm
 The DC removal happens in two places and **must be identical**:
 
 **Training** (`04_train.ipynb`, Cell 5 — Windowing):
+
 ```python
 train_windows = train_windows - train_windows.mean(axis=2, keepdims=True)
 ```
 
 **Live demo** (`live_demo.py`, prediction loop):
+
 ```python
 window_arr = window_arr - window_arr.mean(axis=2, keepdims=True)
 ```
@@ -163,13 +174,13 @@ windows, metadata = odh.parse_windows(WINDOW_SIZE, WINDOW_INC)
 
 ## Key LibEMG documentation links
 
-| Topic | Link |
-|---|---|
-| Full API reference | [libemg.github.io/libemg/emg_toolbox.html](https://libemg.github.io/libemg/emg_toolbox.html) |
-| Feature list and math | [Feature Extraction docs](https://libemg.github.io/libemg/documentation/features/features.html) |
-| Classifier options | [EMG Prediction docs](https://libemg.github.io/libemg/documentation/prediction/prediction.html) |
-| Filtering (bandpass, notch) | [Filtering docs](https://libemg.github.io/libemg/documentation/filtering/filtering.html) |
-| Supported hardware | [Hardware docs](https://libemg.github.io/libemg/documentation/supported_hardware/supported_hardware.html) |
-| Offline analysis example | [Simple Offline Example](https://libemg.github.io/libemg/examples/simple_offline_example/simple_offline_example.html) |
-| Online control example | [Snake game example](https://libemg.github.io/libemg/examples/snake_example/snake_example.html) |
-| Workshop walkthrough | [MEC24 Workshop repo](https://github.com/LibEMG/LibEMG_MEC24_Workshop) |
+| Topic                       | Link                                                                                                                  |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Full API reference          | [libemg.github.io/libemg/emg_toolbox.html](https://libemg.github.io/libemg/emg_toolbox.html)                          |
+| Feature list and math       | [Feature Extraction docs](https://libemg.github.io/libemg/documentation/features/features.html)                       |
+| Classifier options          | [EMG Prediction docs](https://libemg.github.io/libemg/documentation/prediction/prediction.html)                       |
+| Filtering (bandpass, notch) | [Filtering docs](https://libemg.github.io/libemg/documentation/filtering/filtering.html)                              |
+| Supported hardware          | [Hardware docs](https://libemg.github.io/libemg/documentation/supported_hardware/supported_hardware.html)             |
+| Offline analysis example    | [Simple Offline Example](https://libemg.github.io/libemg/examples/simple_offline_example/simple_offline_example.html) |
+| Online control example      | [Snake game example](https://libemg.github.io/libemg/examples/snake_example/snake_example.html)                       |
+| Workshop walkthrough        | [MEC24 Workshop repo](https://github.com/LibEMG/LibEMG_MEC24_Workshop)                                                |

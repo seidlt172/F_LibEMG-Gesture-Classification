@@ -35,10 +35,11 @@ import time
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 GESTURES = {
-    0: "Fist        (close ALL fingers firmly into a fist)",
-    1: "Open Hand   (spread fingers wide, palm facing forward like a STOP sign)",
-    2: "Index Point (extend index finger only, curl the rest; rotate wrist so"
-       " dorsal side faces UP — helps separate muscle signals from Fist)",
+    0: "Rest            (alle Finger locker eingeklappt, Hand entspannt am Lenkrad)",
+    1: "Daumen hoch     (Faust schließen, nur Daumen gestreckt nach oben)",
+    2: "Swipe           (alle Finger zusammen, Handgelenk zügig seitlich schwenken)",
+    3: "Handgelenk drehen (Unterarm rotieren pro/supination, Finger locker gestreckt)",
+    4: "Zeigen/Tippen   (nur Zeigefinger gestreckt, restliche Finger eingekrallt)",
 }
 
 N_REPS = 10          # number of repetitions per gesture

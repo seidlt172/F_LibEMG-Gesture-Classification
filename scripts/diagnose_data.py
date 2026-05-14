@@ -20,7 +20,7 @@ from libemg.feature_extractor import FeatureExtractor
 from libemg.utils import get_windows
 
 DATA_DIR  = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data', 'raw'))
-GESTURES  = {0: 'Fist', 1: 'Open Hand', 2: 'Index Point'}
+GESTURES  = {0: 'Rest', 1: 'Daumen hoch', 2: 'Swipe', 3: 'Handgelenk drehen', 4: 'Zeigen/Tippen'}
 
 WINDOW_SIZE   = 200
 WINDOW_INC    = 100

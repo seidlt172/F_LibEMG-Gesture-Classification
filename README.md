@@ -83,6 +83,7 @@ python scripts/inspect_data.py
 ```
 
 Plots all 8 channels for each gesture. Look for:
+
 - Channels with visible activity differences between gestures (good)
 - Flat channels with near-zero std (bad — check electrode contact)
 
@@ -113,11 +114,11 @@ Hold a gesture and watch the predictions print in real time.
 
 ## Troubleshooting
 
-| Problem | What to check |
-|---|---|
-| Streamer says "no data" | Is the armband WiFi connected? Is the LED on? |
+| Problem                                                 | What to check                                                                                                          |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Streamer says "no data"                                 | Is the armband WiFi connected? Is the LED on?                                                                          |
 | 100% training accuracy but live demo predicts one class | DC offset mismatch — make sure the notebook has the `mean(axis=2)` subtraction line. Run `diagnose_data.py` to verify. |
-| Low accuracy (<70%) | Check `inspect_data.py` plots. Are gestures visually different? Re-record with firmer contractions. |
-| Live demo lags | Reduce `PREDICT_EVERY_N_SAMPLES` in `live_demo.py` |
+| Low accuracy (<70%)                                     | Check `inspect_data.py` plots. Are gestures visually different? Re-record with firmer contractions.                    |
+| Live demo lags                                          | Reduce `PREDICT_EVERY_N_SAMPLES` in `live_demo.py`                                                                     |
 
 For extending the pipeline (adding gestures, changing classifiers, using different features), see **[GUIDE.md](GUIDE.md)**.
