@@ -50,6 +50,15 @@ GESTURE_ICONS = {
     4: "☝️",
 }
 
+# Manual buttons — Rest excluded, Unknown added as fallback
+MANUAL_BUTTONS = {
+    1: ("👍", "Daumen hoch"),
+    2: ("👋", "Swipe"),
+    3: ("🔄", "Handgelenk drehen"),
+    4: ("☝️", "Zeigen / Tippen"),
+    -1: ("❓", "Unknown"),
+}
+
 WINDOW_SIZE             = 200
 FEATURE_GROUP           = 'HTD'
 N_CHANNELS              = 8
@@ -334,8 +343,7 @@ class GestureGUI:
         btn_grid = tk.Frame(manual_card, bg=BG_CARD)
         btn_grid.pack(fill="both", expand=True)
 
-        for gid, gname in GESTURE_NAMES.items():
-            icon = GESTURE_ICONS.get(gid, "")
+        for gid, (icon, gname) in MANUAL_BUTTONS.items():
             lbl = tk.Label(
                 btn_grid,
                 text=f"{icon}  {gname}",
@@ -547,17 +555,21 @@ class GestureGUI:
 
         self.root.after(200, self._update_feed)
 
-    def _log_entry(self, label):
+    def _log_entry(self, label, source="EMG"):
         """Add a gesture to the log."""
-        name = GESTURE_NAMES.get(label, f"class_{label}")
-        icon = GESTURE_ICONS.get(label, "")
+        if label == -1:
+            name = "Unknown"
+            icon = "❓"
+        else:
+            name = GESTURE_NAMES.get(label, f"class_{label}")
+            icon = GESTURE_ICONS.get(label, "")
         now  = datetime.now()
         ts   = now.strftime("%H:%M:%S")
 
         with state.lock:
             state.log.append((now, name))
 
-        entry = f"{ts}  {icon} {name}"
+        entry = f"{ts}  {icon} {name}  [{source}]"
         self.log_listbox.insert(tk.END, entry)
         self.log_listbox.see(tk.END)
 
@@ -575,10 +587,10 @@ class GestureGUI:
 
     def _log_predicted(self):
         if self._log_btn_enabled and hasattr(self, '_current_label') and self._current_label is not None:
-            self._log_entry(self._current_label)
+            self._log_entry(self._current_label, source="EMG")
 
     def _log_manual(self, gesture_id):
-        self._log_entry(gesture_id)
+        self._log_entry(gesture_id, source="manual")
 
     def _clear_log(self):
         self.log_listbox.delete(0, tk.END)
