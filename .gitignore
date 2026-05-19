@@ -25,3 +25,16 @@ models/*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Virtuelle Umgebungen
+.venv/
+venv/
+env/
+
+# Python Cache (Schattenkopien, die wir vorhin gelöscht haben)
+__pycache__/
+*.pyc
+
+# Temporäre Audio- und Modelldateien (sollten auch nicht auf GitHub)
+temp_voice.wav
+models/clf/

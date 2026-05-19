@@ -1,186 +1,164 @@
-# Extending the pipeline
+# EMG Gesture Classification — LibEMG + MindRove
 
-This guide tells you **where to edit** and **what to read** when you want to modify the pipeline. Each section is a task; follow only the ones relevant to you.
+Classify hand gestures in real time using surface EMG.
+Built on [LibEMG](https://libemg.github.io/libemg/) and the MindRove armband (8-channel, 500 Hz).
 
----
-hallo
-## Adding a new gesture
-
-You need to edit **two files** and re-run the training notebook.
-
-**1. `scripts/collect_data.py`** — add an entry to the `GESTURES` dict (line ~37):
-
-```python
-GESTURES = {
-    0: "Rest            (alle Finger locker eingeklappt, Hand entspannt am Lenkrad)",
-    1: "Daumen hoch     (Faust schließen, nur Daumen gestreckt nach oben)",
-    2: "Swipe           (alle Finger zusammen, Handgelenk zügig seitlich schwenken)",
-    3: "Handgelenk drehen (Unterarm rotieren pro/supination, Finger locker gestreckt)",
-    4: "Zeigen/Tippen   (nur Zeigefinger gestreckt, restliche Finger eingekrallt)",
-}
-```
-
-The key (3) becomes the folder name (`gesture_3`) and the class label. The string is the prompt shown during collection.
-
-**2. `scripts/live_demo.py`** — add the same ID to `GESTURE_NAMES` (line ~34):
-
-```python
-GESTURE_NAMES = {
-    0: "Rest            (keine Aktion)",
-    1: "Annehmen        (Daumen hoch)",
-    2: "Ablehnen/Nav    (Swipe)",
-    3: "Regulieren      (Handgelenk drehen)",
-    4: "Zeigen/Tippen   (nur Zeigefinger gestreckt, restliche Finger eingekrallt)",
-}
-```
-
-**3. Re-run the notebook.** No changes needed there — it auto-discovers all `gesture_*` folders in `data/raw/`.
-
-**Tips for choosing gestures:**
-
-- Pick gestures that use different muscle groups (e.g. flexors vs extensors)
-- Avoid gestures that feel similar when you hold them — if _you_ can't tell them apart, the EMG won't either
-- More gestures = more data needed. Collect at least 10 reps per gesture.
+> **For students:** follow the steps below in order. Each script has a detailed docstring at the top — read it before running.
 
 ---
 
-## Changing the classifier
+## Folder structure
 
-Edit **one cell** in `notebooks/04_train.ipynb`.
+```text
+LibEMG_workflow/
+├── scripts/
+│   ├── mindrove_streamer.py   ← connects armband → UDP stream
+│   ├── collect_data.py        ← guided gesture recording
+│   ├── inspect_data.py        ← signal quality plots
+│   ├── live_demo.py           ← real-time prediction
+│   └── diagnose_data.py       ← troubleshooting tool
+├── Middleware/                ← central integration for Audio & EMG
+│   ├── gesture_gui.py         ← Main GUI for multimodal input
+│   ├── audio_recorder.py      ← PyAudio recording logic
+│   ├── speech_transcriber.py  ← Whisper STT logic
+│   └── network_client.py      ← API sockets
+├── notebooks/
+│   └── 04_train.ipynb         ← feature extraction → training → evaluation
+├── data/
+│   ├── raw/                   ← your collected data goes here
+│   ├── sample/                ← example data (copy to raw/ for a test run)
+│   └── inspect/               ← signal plots from inspect_data.py
+├── models/                    ← trained classifier saved here
+├── requirements.txt
+├── GUIDE.md                   ← how to extend and modify the pipeline
+└── README.md                  ← you are here
 
-In Cell 2 (Configuration), change the `CLASSIFIER` variable:
-
-```python
-CLASSIFIER = 'SVM'  # options: 'LDA', 'SVM', 'KNN', 'RF', 'MLP', 'QDA', 'NB'
 ```
-
-You can also pass a custom scikit-learn model:
-
-```python
-from sklearn.ensemble import GradientBoostingClassifier
-clf = EMGClassifier(GradientBoostingClassifier(n_estimators=100))
-```
-
-**LibEMG docs:** [EMG Prediction — Classifiers](https://libemg.github.io/libemg/documentation/prediction/prediction.html)
-
-| Classifier | When to try it                                                |
-| ---------- | ------------------------------------------------------------- |
-| `LDA`      | Default. Fast, works well with small data. Start here.        |
-| `SVM`      | When LDA accuracy is low. Handles non-linear boundaries.      |
-| `KNN`      | Simple baseline. Sensitive to the number of training samples. |
-| `RF`       | Robust to noise, but can overfit with few reps.               |
 
 ---
 
-## Changing the feature set
+## Prerequisites & Setup
 
-Edit `FEATURE_GROUP` in both the notebook and `live_demo.py`. They **must match**.
+To ensure all C++ dependencies (like `pygame` and `pyaudio`) compile correctly, this project **strictly requires Python 3.11 or 3.12**. Do *not* use Python 3.13 or 3.14. You also need FFmpeg for the audio transcription pipeline.
 
-```python
-FEATURE_GROUP = 'LS9'  # options: 'HTD', 'LS9', 'TDPSD'
+### 1. System Requirements (Windows)
+
+Open a new PowerShell (ideally as Administrator) and install the necessary system tools:
+
+```bash
+# Install Python 3.12
+winget install Python.Python.3.12
+
+# Install FFmpeg (Crucial for Whisper Speech-to-Text)
+winget install Gyan.FFmpeg
+
 ```
 
-You can also extract individual features instead of a group:
+***Important:** Restart Visual Studio Code and your terminal after installing FFmpeg to update your system's PATH variables!*
 
-```python
-fe = FeatureExtractor()
-features = fe.extract_features(['MAV', 'ZC', 'SSC', 'WL'], windows)
+### 2. Environment Setup (.venv)
+
+Navigate to the project folder and create a clean virtual environment specifically using Python 3.12.
+
+```bash
+# Create the virtual environment
+# Windows:
+py -3.12 -m venv .venv
+# macOS/Linux:
+python3.12 -m venv .venv
+
+# Activate it
+# Windows (PowerShell):
+.\.venv\Scripts\Activate.ps1
+# macOS/Linux:
+source .venv/bin/activate
+
+# Install all dependencies (make sure your .venv is active!)
+pip install -r requirements.txt
+
 ```
 
-To see all available features and groups:
-
-```python
-fe = FeatureExtractor()
-print(fe.get_feature_list())      # individual features
-print(fe.get_feature_groups())    # predefined groups
-```
-
-**LibEMG docs:** [Feature Extraction](https://libemg.github.io/libemg/documentation/features/features.html)
-
-**Key feature groups:**
-
-- `HTD` — Hudgins time-domain (MAV, ZC, SSC, WL). Default, widely used, fast.
-- `LS9` — 9 features designed for low-sampling-rate devices. Good for robustness.
-- `TDPSD` — Time-domain power spectral descriptors. More features, sometimes better accuracy.
+*(Note: Ensure `pyaudio` is listed in your `requirements.txt`)*
 
 ---
 
-## Changing window parameters
+## Quick start (5 steps)
 
-The window size and increment control how the raw signal is segmented before feature extraction. Edit these in the notebook **and** `live_demo.py` — they must match.
+### Step 1 — Stream from the armband
 
-```python
-WINDOW_SIZE = 200   # samples (200 @ 500Hz = 400ms)
-WINDOW_INC  = 100   # samples (100 @ 500Hz = 200ms) — only used in training
+Connect to the MindRove WiFi (`MindRove_XXXX`), then in a terminal:
+
+```bash
+python scripts/mindrove_streamer.py
+
 ```
 
-- Larger windows → more context, higher accuracy, but slower response
-- Smaller windows → faster response, but noisier features
-- Common range: 150–300 samples at 500 Hz
+Keep this terminal open — it bridges the armband to the rest of the pipeline.
 
-**LibEMG docs:** [Data Handler — parse_windows](https://libemg.github.io/libemg/emg_toolbox.html#libemg.data_handler.OfflineDataHandler.parse_windows)
+### Step 2 — Collect gesture data
+
+In a **second** terminal:
+
+```bash
+python scripts/collect_data.py
+
+```
+
+Follow the prompts. The script records 10 repetitions of each gesture (3 seconds each) and saves CSVs to `data/raw/gesture_<id>/`.
+
+> **No armband?** Copy the contents of `data/sample/` into `data/raw/` and skip to step 3. See `data/sample/README.md` for details.
+
+### Step 3 — Inspect signal quality
+
+```bash
+python scripts/inspect_data.py
+
+```
+
+Plots all 8 channels for each gesture. Look for:
+
+* Channels with visible activity differences between gestures (good)
+* Flat channels with near-zero std (bad — check electrode contact)
+
+### Step 4 — Train the classifier
+
+Open `notebooks/04_train.ipynb` in Jupyter and run all cells top to bottom.
+
+The notebook handles: windowing → DC offset removal → feature extraction (HTD group) → LDA training → evaluation → model save.
+
+### Step 5 — Multimodal Live Demo
+
+Instead of the basic demo, run the multimodal Central Interface:
+
+```bash
+python Middleware/gesture_gui.py
+
+```
+
+Hold a gesture, confirm it via the UI, and record your voice commands. The interface handles the rest!
 
 ---
 
-## Understanding the preprocessing
+## Hardware checklist
 
-The most important preprocessing step is **DC offset removal**. The MindRove armband outputs raw ADC values with large constant offsets (thousands of µV) that vary between recording sessions. If you don't remove them, the classifier learns session-specific offsets instead of gesture-specific muscle patterns.
-
-The DC removal happens in two places and **must be identical**:
-
-**Training** (`04_train.ipynb`, Cell 5 — Windowing):
-
-```python
-train_windows = train_windows - train_windows.mean(axis=2, keepdims=True)
-```
-
-**Live demo** (`live_demo.py`, prediction loop):
-
-```python
-window_arr = window_arr - window_arr.mean(axis=2, keepdims=True)
-```
-
-`axis=2` is the time axis in LibEMG's window format: `(n_windows, n_channels, window_size)`.
-
-If you add any other preprocessing (filtering, normalization), it must be applied in both places.
-
-**LibEMG docs:** [Filtering](https://libemg.github.io/libemg/documentation/filtering/filtering.html)
+1. Power on the MindRove armband (LED blinks)
+2. Connect PC to armband WiFi (`MindRove_XXXX`)
+3. Verify: `ping 192.168.4.1` should get replies
+4. Run `mindrove_streamer.py` — it should report `Stream started OK`
 
 ---
 
-## Using LibEMG's built-in data handling (optional)
+## Troubleshooting
 
-This pipeline uses manual CSV loading for simplicity. LibEMG has a more powerful `OfflineDataHandler` that can auto-discover files using regex patterns. If you want to use it:
+| Problem | What to check |
+| --- | --- |
+| Streamer says "no data" | Is the armband WiFi connected? Is the LED on? |
+| 100% training accuracy but live demo predicts one class | DC offset mismatch — make sure the notebook has the `mean(axis=2)` subtraction line. Run `diagnose_data.py` to verify. |
+| Low accuracy (<70%) | Check `inspect_data.py` plots. Are gestures visually different? Re-record with firmer contractions. |
+| Live demo lags | Reduce `PREDICT_EVERY_N_SAMPLES` in `live_demo.py` |
+| `FileNotFoundError` (WinError 2) during audio | FFmpeg is missing from your system PATH. Install it via `winget` (see Setup) and completely restart VS Code. |
+| `ModuleNotFoundError` for PyAudio or Pygame | Your terminal is not using the `.venv`. Run `.\.venv\Scripts\Activate.ps1` and `pip install -r requirements.txt`. |
 
-```python
-from libemg.data_handler import OfflineDataHandler, RegexFilter
+For extending the pipeline (adding gestures, changing classifiers, using different features), see **[GUIDE.md](GUIDE.md)**.
 
-odh = OfflineDataHandler()
-odh.get_data(
-    folder_location='data/raw/',
-    regex_filters=[
-        RegexFilter(left_bound='gesture_', right_bound='/', values=['0','1','2'], description='classes'),
-        RegexFilter(left_bound='rep_', right_bound='.csv', values=[str(i) for i in range(10)], description='reps'),
-    ],
-    delimiter=',',
-    skiprows=1
-)
-windows, metadata = odh.parse_windows(WINDOW_SIZE, WINDOW_INC)
 ```
-
-**LibEMG docs:** [Data Handler — OfflineDataHandler](https://libemg.github.io/libemg/emg_toolbox.html#libemg.data_handler.OfflineDataHandler)
-
----
-
-## Key LibEMG documentation links
-
-| Topic                       | Link                                                                                                                  |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Full API reference          | [libemg.github.io/libemg/emg_toolbox.html](https://libemg.github.io/libemg/emg_toolbox.html)                          |
-| Feature list and math       | [Feature Extraction docs](https://libemg.github.io/libemg/documentation/features/features.html)                       |
-| Classifier options          | [EMG Prediction docs](https://libemg.github.io/libemg/documentation/prediction/prediction.html)                       |
-| Filtering (bandpass, notch) | [Filtering docs](https://libemg.github.io/libemg/documentation/filtering/filtering.html)                              |
-| Supported hardware          | [Hardware docs](https://libemg.github.io/libemg/documentation/supported_hardware/supported_hardware.html)             |
-| Offline analysis example    | [Simple Offline Example](https://libemg.github.io/libemg/examples/simple_offline_example/simple_offline_example.html) |
-| Online control example      | [Snake game example](https://libemg.github.io/libemg/examples/snake_example/snake_example.html)                       |
-| Workshop walkthrough        | [MEC24 Workshop repo](https://github.com/LibEMG/LibEMG_MEC24_Workshop)                                                |

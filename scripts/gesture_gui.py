@@ -20,6 +20,7 @@ Press the window close button to stop.
 """
 
 import os
+import sys
 import pickle
 import socket
 import collections
@@ -29,7 +30,18 @@ import tkinter as tk
 from tkinter import font as tkfont
 from datetime import datetime
 import numpy as np
+import logging
 
+logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s] %(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
+
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from Middleware.audio_recorder import AudioRecorder
+from Middleware.network_client import send_gesture_to_middleware
+from Middleware.speech_transcriber import SpeechTranscriber
 from libemg.feature_extractor import FeatureExtractor
 
 # ── Settings ──────────────────────────────────────────────────────────────────
@@ -222,6 +234,15 @@ class GestureGUI:
         self.root.title("EMG Gesture Recognition")
         self.root.configure(bg=BG)
 
+        self.last_logged_gesture = "NONE"
+        self.is_recording = False
+        self.recording_start_time = 0.0
+        # Use absolute path for audio file
+        audio_file_path = os.path.join(ROOT_DIR, "temp_voice.wav")
+        self.recorder = AudioRecorder(output_filename=audio_file_path)
+        self.transcriber = SpeechTranscriber(model_name="base")
+        self.transcribed_text = ""
+
         self._build_fonts()
         self._build_ui()
         self._start_update_loop()
@@ -332,6 +353,12 @@ class GestureGUI:
         self.log_btn.bind("<Leave>", lambda e: self.log_btn.config(bg=ACCENT_DIM))
         self._log_btn_enabled = False
 
+        self.last_gesture_label = tk.Label(left,
+                                          text=f"Letzte Geste: {self.last_logged_gesture}",
+                                          font=self.font_status, bg=BG, fg=TEXT_SEC,
+                                          anchor="w")
+        self.last_gesture_label.pack(fill="x", pady=(0, 8))
+
         # Manual gesture buttons
         manual_card = tk.Frame(left, bg=BG_CARD, padx=12, pady=6)
         manual_card.pack(fill="both", expand=True, pady=(0, 5))
@@ -356,6 +383,40 @@ class GestureGUI:
             lbl.bind("<Button-1>", lambda e, g=gid: self._log_manual(g))
             lbl.bind("<Enter>",    lambda e, w=lbl: w.config(bg=ACCENT_DIM, fg="#000000"))
             lbl.bind("<Leave>",    lambda e, w=lbl: w.config(bg="#1a1a1a",  fg="#ffffff"))
+
+        audio_card = tk.Frame(left, bg=BG_CARD, padx=12, pady=12)
+        audio_card.pack(fill="x", pady=(0, 5))
+        self._add_border(audio_card)
+
+        tk.Label(audio_card, text="SPRACHAUFNAHME",
+                 font=self.font_status, bg=BG_CARD, fg=TEXT_SEC).pack(anchor="w")
+
+        self.record_button = tk.Button(audio_card, text="Sprachaufnahme starten",
+                                       font=self.font_btn_sm, bg=ACCENT_DIM, fg=BG,
+                                       activebackground=ACCENT, activeforeground=BG,
+                                       relief="flat", bd=0, cursor="hand2",
+                                       command=self._on_toggle_recording)
+        self.record_button.pack(fill="x", pady=(8, 4))
+
+        self.api_button = tk.Button(audio_card, text="An API abschicken",
+                                    font=self.font_btn_sm, bg=ACCENT_DIM, fg=BG,
+                                    activebackground=ACCENT, activeforeground=BG,
+                                    relief="flat", bd=0, cursor="hand2",
+                                    command=self._on_send_to_api)
+        self.api_button.pack(fill="x")
+
+        self.recording_status = tk.Label(audio_card, text="Aufnahme gestoppt",
+                                         font=self.font_status, bg=BG_CARD, fg=TEXT_DIM)
+        self.recording_status.pack(fill="x", pady=(8, 0))
+
+        self.action_status_label = tk.Label(audio_card, text="Bereit.",
+                                            font=self.font_status, bg=BG_CARD, fg=TEXT_SEC)
+        self.action_status_label.pack(fill="x", pady=(4, 0))
+
+        self.transcription_label = tk.Label(audio_card, text="Transkript: —",
+                                            font=self.font_status, bg=BG_CARD, fg=TEXT_DIM,
+                                            wraplength=280, justify="left")
+        self.transcription_label.pack(fill="x", pady=(8, 0))
 
         # Right column — Log
         right = tk.Frame(content, bg=BG)
@@ -587,7 +648,121 @@ class GestureGUI:
 
     def _log_predicted(self):
         if self._log_btn_enabled and hasattr(self, '_current_label') and self._current_label is not None:
+            self.last_logged_gesture = GESTURE_NAMES.get(self._current_label, f"class_{self._current_label}")
+            self.last_gesture_label.config(text=f"Letzte Geste: {self.last_logged_gesture}")
             self._log_entry(self._current_label, source="EMG")
+
+    def _on_toggle_recording(self):
+        if not self.is_recording:
+            logger.info("Starting recording...")
+            self.action_status_label.config(text="Starte Aufnahme…", fg=TEXT_PRI)
+            self.record_button.config(text="Sprachaufnahme stoppen")
+            self.is_recording = True
+            self.recording_start_time = time.time()
+            
+            def start_in_thread():
+                try:
+                    logger.info("Opening audio stream...")
+                    self.recorder.start_recording()
+                    logger.info("Recording started successfully")
+                    self.recording_status.config(text="Aufnahme läuft…", fg=ACCENT)
+                    self.action_status_label.config(text="Aufnahme läuft. Drücke erneut, um zu stoppen.", fg=ACCENT)
+                except Exception as exc:
+                    logger.error(f"Recording start error: {exc}", exc_info=True)
+                    self.is_recording = False
+                    self.record_button.config(text="Sprachaufnahme starten")
+                    self.action_status_label.config(text=f"Aufnahmefehler: {exc}", fg=DANGER)
+                    self.recording_status.config(text="Aufnahme fehlgeschlagen", fg=DANGER)
+            
+            thread = threading.Thread(target=start_in_thread, daemon=True)
+            thread.start()
+            
+            # Check if thread is still hanging after 15 seconds
+            def check_thread_status():
+                elapsed = time.time() - self.recording_start_time
+                if self.is_recording and elapsed > 15.0:
+                    if thread.is_alive():
+                        logger.warning("Audio thread stuck for 15+ seconds, likely PyAudio issue")
+                        self.is_recording = False
+                        self.record_button.config(text="Sprachaufnahme starten")
+                        self.action_status_label.config(text="Audio-Init Fehler nach 15s. Prüfe Mikrofon.", fg=DANGER)
+                        self.recording_status.config(text="Audio-Timeout (15s)", fg=DANGER)
+                        return
+                
+                if self.is_recording and thread.is_alive():
+                    self.root.after(1000, check_thread_status)
+            
+            self.root.after(15000, check_thread_status)
+        else:
+            self._stop_recording()
+
+    def _stop_recording(self):
+        logger.info("Stopping recording...")
+        self.action_status_label.config(text="Stope Aufnahme und speichere Audio…", fg=TEXT_PRI)
+        self.record_button.config(text="Sprachaufnahme starten")
+        
+        def stop_in_thread():
+            try:
+                self.recorder.stop_recording()
+                self.is_recording = False
+                logger.info("Recording stopped and saved")
+                self.recording_status.config(text="Aufnahme beendet", fg=TEXT_SEC)
+                self.action_status_label.config(text="Audio in temp_voice.wav gespeichert. Transkribiere…", fg=ACCENT)
+                self.transcription_label.config(text="Transkript: (wird transkribiert…)", fg=TEXT_SEC)
+                
+                # Start transcription in a separate thread
+                self._transcribe_async()
+            except Exception as exc:
+                logger.error(f"Recording stop error: {exc}", exc_info=True)
+                self.action_status_label.config(text=f"Stop-Fehler: {exc}", fg=DANGER)
+                self.recording_status.config(text="Stop-Fehler", fg=DANGER)
+        
+        thread = threading.Thread(target=stop_in_thread, daemon=True)
+        thread.start()
+
+    def _transcribe_async(self):
+        """Transcribe audio file in background thread."""
+        def transcribe_in_thread():
+            try:
+                logger.info("Starting speech-to-text transcription...")
+                # Use absolute path
+                output_file = os.path.join(ROOT_DIR, "temp_voice.wav")
+                logger.info(f"Transcribing file: {output_file}")
+                text = self.transcriber.transcribe(output_file)
+                
+                if text:
+                    self.transcribed_text = text
+                    logger.info(f"Transcription complete: {text}")
+                    self.transcription_label.config(text=f"Transkript: {text}", fg=ACCENT)
+                    self.action_status_label.config(text="Transkription erfolgreich.", fg=ACCENT)
+                else:
+                    logger.warning("Transcription returned empty text")
+                    self.transcription_label.config(text="Transkript: (konnte nicht transkribieren)", fg=DANGER)
+                    self.action_status_label.config(text="Transkription fehlgeschlagen.", fg=DANGER)
+                    
+            except Exception as exc:
+                logger.error(f"Transcription error: {exc}", exc_info=True)
+                self.transcription_label.config(text=f"Transkript: Fehler - {exc}", fg=DANGER)
+                self.action_status_label.config(text=f"Transkriptionsfehler: {exc}", fg=DANGER)
+        
+        thread = threading.Thread(target=transcribe_in_thread, daemon=True)
+        thread.start()
+
+    def _on_send_to_api(self):
+        if self.is_recording:
+            self.action_status_label.config(text="Beende zuerst die Aufnahme…", fg=TEXT_PRI)
+            self._stop_recording()
+
+        payload = self.last_logged_gesture or "NONE"
+        self.action_status_label.config(text=f"Sende Geste an Middleware: {payload}", fg=TEXT_PRI)
+        sent = send_gesture_to_middleware(payload)
+
+        if sent:
+            self.recording_status.config(text=f"Geste gesendet: {payload}", fg=ACCENT)
+            self.action_status_label.config(text="Middleware erfolgreich kontaktiert.", fg=ACCENT)
+        else:
+            self.recording_status.config(text="Middleware nicht erreichbar", fg=DANGER)
+            self.action_status_label.config(text="Senden fehlgeschlagen. Prüfe Middleware.", fg=DANGER)
 
     def _log_manual(self, gesture_id):
         self._log_entry(gesture_id, source="manual")
