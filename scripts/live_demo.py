@@ -29,15 +29,12 @@ import numpy as np
 from libemg.feature_extractor import FeatureExtractor
 from libemg.emg_predictor import EMGClassifier
 
-# ── Settings ──────────────────────────────────────────────────────────────────
+try:
+    from scripts.gesture_config import LIVE_GESTURE_NAMES as GESTURE_NAMES
+except ImportError:
+    from gesture_config import LIVE_GESTURE_NAMES as GESTURE_NAMES
 
-GESTURE_NAMES = {
-    0: "Rest            (keine Aktion)",
-    1: "Annehmen        (Daumen hoch)",
-    2: "Ablehnen/Nav    (Swipe)",
-    3: "Regulieren      (Handgelenk drehen)",
-    4: "Zeigen/Tippen   (nur Zeigefinger gestreckt, restliche Finger eingekrallt)",
-}
+# ── Settings ──────────────────────────────────────────────────────────────────
 
 WINDOW_SIZE             = 200   # must match training notebook
 FEATURE_GROUP           = 'HTD' # must match training notebook

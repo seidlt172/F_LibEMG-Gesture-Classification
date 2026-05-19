@@ -38,7 +38,7 @@ class AudioRecorder:
             return self._recording_flag
 
     def start_recording(self) -> None:
-        """Start recording using Windows default microphone."""
+        """Start recording using the system default microphone."""
         with self._lock:
             if self._recording_flag:
                 raise RuntimeError("Recording already running")
@@ -47,7 +47,7 @@ class AudioRecorder:
             self._stop_event.clear()
 
         # Open stream OUTSIDE the lock
-        logger.info("Opening stream on Windows default microphone...")
+        logger.info("Opening stream on system default microphone...")
         try:
             self._stream = self._audio.open(
                 format=self.format,

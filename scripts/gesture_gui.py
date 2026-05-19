@@ -14,7 +14,7 @@ What it does:
 
 Usage:
     Terminal 1: python scripts/mindrove_streamer.py
-    Terminal 2: python scripts/gesture_gui.py
+    Terminal 2: python gesture_gui.py
 
 Press the window close button to stop.
 """
@@ -24,6 +24,7 @@ import sys
 import pickle
 import socket
 import collections
+import queue
 import threading
 import time
 import tkinter as tk
@@ -40,19 +41,14 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from Middleware.audio_recorder import AudioRecorder
-from Middleware.network_client import send_gesture_to_middleware
+from Middleware.intent_manager import OllamaIntentClient
+from Middleware.intent_manager import OllamaIntentError
 from Middleware.speech_transcriber import SpeechTranscriber
 from libemg.feature_extractor import FeatureExtractor
+from scripts.gesture_config import GESTURE_DISPLAY_NAMES as GESTURE_NAMES
+from scripts.gesture_config import MANUAL_GESTURE_IDS
 
 # ── Settings ──────────────────────────────────────────────────────────────────
-
-GESTURE_NAMES = {
-    0: "Rest",
-    1: "Daumen hoch",
-    2: "Swipe",
-    3: "Handgelenk drehen",
-    4: "Zeigen / Tippen",
-}
 
 GESTURE_ICONS = {
     0: "✋",
@@ -64,12 +60,12 @@ GESTURE_ICONS = {
 
 # Manual buttons — Rest excluded, Unknown added as fallback
 MANUAL_BUTTONS = {
-    1: ("👍", "Daumen hoch"),
-    2: ("👋", "Swipe"),
-    3: ("🔄", "Handgelenk drehen"),
-    4: ("☝️", "Zeigen / Tippen"),
-    -1: ("❓", "Unknown"),
+    gid: (GESTURE_ICONS[gid], GESTURE_NAMES[gid])
+    for gid in MANUAL_GESTURE_IDS
 }
+MANUAL_BUTTONS.update({
+    -1: ("❓", "Unknown"),
+})
 
 WINDOW_SIZE             = 200
 FEATURE_GROUP           = 'HTD'
@@ -81,6 +77,11 @@ VOTE_WINDOW_SECS        = 1.0   # collect predictions for this long, pick majori
 UDP_HOST   = '127.0.0.1'
 UDP_PORT   = 12345
 MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'clf')
+INTENT_CONTEXT = (
+    "Automotive cockpit research prototype. Possible domains are incoming calls, "
+    "navigation routes, media playback, ambient light, seat heating, volume, "
+    "and received messages."
+)
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 
@@ -236,16 +237,23 @@ class GestureGUI:
 
         self.last_logged_gesture = "NONE"
         self.is_recording = False
+        self.recording_state = "idle"
         self.recording_start_time = 0.0
+        self._recording_token = 0
+        self._ui_queue = queue.Queue()
         # Use absolute path for audio file
         audio_file_path = os.path.join(ROOT_DIR, "temp_voice.wav")
         self.recorder = AudioRecorder(output_filename=audio_file_path)
         self.transcriber = SpeechTranscriber(model_name="base")
+        self.intent_client = OllamaIntentClient.from_env()
         self.transcribed_text = ""
+        self.intent_in_progress = False
 
         self._build_fonts()
         self._build_ui()
         self._start_update_loop()
+        self._process_ui_queue()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build_fonts(self):
         self.font_title    = tkfont.Font(family="Courier New", size=13, weight="bold")
@@ -398,11 +406,11 @@ class GestureGUI:
                                        command=self._on_toggle_recording)
         self.record_button.pack(fill="x", pady=(8, 4))
 
-        self.api_button = tk.Button(audio_card, text="An API abschicken",
+        self.api_button = tk.Button(audio_card, text="Intent auswerten",
                                     font=self.font_btn_sm, bg=ACCENT_DIM, fg=BG,
                                     activebackground=ACCENT, activeforeground=BG,
                                     relief="flat", bd=0, cursor="hand2",
-                                    command=self._on_send_to_api)
+                                    command=self._on_evaluate_intent)
         self.api_button.pack(fill="x")
 
         self.recording_status = tk.Label(audio_card, text="Aufnahme gestoppt",
@@ -417,6 +425,11 @@ class GestureGUI:
                                             font=self.font_status, bg=BG_CARD, fg=TEXT_DIM,
                                             wraplength=280, justify="left")
         self.transcription_label.pack(fill="x", pady=(8, 0))
+
+        self.intent_label = tk.Label(audio_card, text="Intent: —",
+                                     font=self.font_status, bg=BG_CARD, fg=TEXT_DIM,
+                                     wraplength=280, justify="left")
+        self.intent_label.pack(fill="x", pady=(6, 0))
 
         # Right column — Log
         right = tk.Frame(content, bg=BG)
@@ -502,6 +515,71 @@ class GestureGUI:
         feed_scrollbar.config(command=self.feed_listbox.yview)
 
         self._last_feed_ts = 0.0
+
+    def _process_ui_queue(self):
+        """Apply UI updates that were requested by worker threads."""
+        try:
+            while True:
+                callback, args, kwargs = self._ui_queue.get_nowait()
+                try:
+                    callback(*args, **kwargs)
+                except Exception as exc:
+                    logger.error(f"Queued UI update failed: {exc}", exc_info=True)
+        except queue.Empty:
+            pass
+
+        self.root.after(50, self._process_ui_queue)
+
+    def _post_ui(self, callback, *args, **kwargs):
+        self._ui_queue.put((callback, args, kwargs))
+
+    def _set_recording_state(
+        self,
+        state,
+        *,
+        button_text,
+        button_enabled=True,
+        status_text=None,
+        status_color=None,
+        action_text=None,
+        action_color=None,
+        transcription_text=None,
+        transcription_color=None,
+    ):
+        self.recording_state = state
+        self.is_recording = state in {"starting", "recording", "stopping"}
+
+        if state == "recording":
+            button_bg = DANGER
+            button_fg = "#ffffff"
+            active_bg = "#ff6b85"
+        elif button_enabled:
+            button_bg = ACCENT_DIM
+            button_fg = BG
+            active_bg = ACCENT
+        else:
+            button_bg = TEXT_DIM
+            button_fg = BG_CARD
+            active_bg = TEXT_DIM
+
+        self.record_button.config(
+            text=button_text,
+            state=tk.NORMAL if button_enabled else tk.DISABLED,
+            bg=button_bg,
+            fg=button_fg,
+            activebackground=active_bg,
+            activeforeground=button_fg,
+        )
+
+        if status_text is not None:
+            self.recording_status.config(text=status_text, fg=status_color or TEXT_SEC)
+        if action_text is not None:
+            self.action_status_label.config(text=action_text, fg=action_color or TEXT_SEC)
+        if transcription_text is not None:
+            self.transcription_label.config(
+                text=transcription_text,
+                fg=transcription_color or TEXT_SEC,
+            )
 
     def _add_border(self, widget):
         widget.config(highlightbackground=BORDER, highlightthickness=1,
@@ -627,6 +705,9 @@ class GestureGUI:
         now  = datetime.now()
         ts   = now.strftime("%H:%M:%S")
 
+        self.last_logged_gesture = name
+        self.last_gesture_label.config(text=f"Letzte Geste: {self.last_logged_gesture}")
+
         with state.lock:
             state.log.append((now, name))
 
@@ -648,121 +729,327 @@ class GestureGUI:
 
     def _log_predicted(self):
         if self._log_btn_enabled and hasattr(self, '_current_label') and self._current_label is not None:
-            self.last_logged_gesture = GESTURE_NAMES.get(self._current_label, f"class_{self._current_label}")
-            self.last_gesture_label.config(text=f"Letzte Geste: {self.last_logged_gesture}")
             self._log_entry(self._current_label, source="EMG")
 
     def _on_toggle_recording(self):
-        if not self.is_recording:
-            logger.info("Starting recording...")
-            self.action_status_label.config(text="Starte Aufnahme…", fg=TEXT_PRI)
-            self.record_button.config(text="Sprachaufnahme stoppen")
-            self.is_recording = True
-            self.recording_start_time = time.time()
-            
-            def start_in_thread():
-                try:
-                    logger.info("Opening audio stream...")
-                    self.recorder.start_recording()
-                    logger.info("Recording started successfully")
-                    self.recording_status.config(text="Aufnahme läuft…", fg=ACCENT)
-                    self.action_status_label.config(text="Aufnahme läuft. Drücke erneut, um zu stoppen.", fg=ACCENT)
-                except Exception as exc:
-                    logger.error(f"Recording start error: {exc}", exc_info=True)
-                    self.is_recording = False
-                    self.record_button.config(text="Sprachaufnahme starten")
-                    self.action_status_label.config(text=f"Aufnahmefehler: {exc}", fg=DANGER)
-                    self.recording_status.config(text="Aufnahme fehlgeschlagen", fg=DANGER)
-            
-            thread = threading.Thread(target=start_in_thread, daemon=True)
-            thread.start()
-            
-            # Check if thread is still hanging after 15 seconds
-            def check_thread_status():
-                elapsed = time.time() - self.recording_start_time
-                if self.is_recording and elapsed > 15.0:
-                    if thread.is_alive():
-                        logger.warning("Audio thread stuck for 15+ seconds, likely PyAudio issue")
-                        self.is_recording = False
-                        self.record_button.config(text="Sprachaufnahme starten")
-                        self.action_status_label.config(text="Audio-Init Fehler nach 15s. Prüfe Mikrofon.", fg=DANGER)
-                        self.recording_status.config(text="Audio-Timeout (15s)", fg=DANGER)
-                        return
-                
-                if self.is_recording and thread.is_alive():
-                    self.root.after(1000, check_thread_status)
-            
-            self.root.after(15000, check_thread_status)
-        else:
+        if self.recording_state == "idle":
+            self._start_recording()
+        elif self.recording_state == "recording":
             self._stop_recording()
+        elif self.recording_state == "starting":
+            self.action_status_label.config(text="Mikrofon wird noch geöffnet…", fg=TEXT_PRI)
+        elif self.recording_state in {"stopping", "transcribing"}:
+            self.action_status_label.config(text="Bitte kurz warten, Aufnahme wird verarbeitet…", fg=TEXT_PRI)
+
+    def _start_recording(self):
+        logger.info("Starting recording...")
+        self._recording_token += 1
+        token = self._recording_token
+        self.recording_start_time = time.time()
+        self._set_recording_state(
+            "starting",
+            button_text="Mikrofon wird geöffnet…",
+            button_enabled=False,
+            status_text="Mikrofon wird geöffnet…",
+            status_color=TEXT_PRI,
+            action_text="Aufnahme startet. Bitte kurz warten.",
+            action_color=TEXT_PRI,
+            transcription_text="Transkript: —",
+            transcription_color=TEXT_DIM,
+        )
+
+        def start_in_thread():
+            try:
+                logger.info("Opening audio stream...")
+                self.recorder.start_recording()
+                logger.info("Recording started successfully")
+                self._post_ui(self._on_recording_started, token)
+            except Exception as exc:
+                logger.error(f"Recording start error: {exc}", exc_info=True)
+                self._post_ui(self._on_recording_start_failed, token, str(exc))
+
+        thread = threading.Thread(target=start_in_thread, daemon=True)
+        thread.start()
+        self.root.after(15000, lambda: self._check_recording_start_timeout(token, thread))
+
+    def _on_recording_started(self, token):
+        if token != self._recording_token or self.recording_state != "starting":
+            logger.warning("Recording start finished after UI state changed; stopping stale stream")
+            threading.Thread(target=self.recorder.stop_recording, daemon=True).start()
+            return
+
+        self._set_recording_state(
+            "recording",
+            button_text="Aufnahme stoppen",
+            button_enabled=True,
+            status_text="Aufnahme läuft",
+            status_color=ACCENT,
+            action_text="Aufnahme läuft. Erneut klicken zum Stoppen.",
+            action_color=ACCENT,
+        )
+
+    def _on_recording_start_failed(self, token, message):
+        if token != self._recording_token:
+            return
+
+        self._set_recording_state(
+            "idle",
+            button_text="Sprachaufnahme starten",
+            button_enabled=True,
+            status_text="Aufnahme fehlgeschlagen",
+            status_color=DANGER,
+            action_text=f"Aufnahmefehler: {message}",
+            action_color=DANGER,
+        )
+
+    def _check_recording_start_timeout(self, token, thread):
+        if token != self._recording_token or self.recording_state != "starting":
+            return
+        if not thread.is_alive():
+            return
+
+        logger.warning("Audio thread stuck for 15+ seconds, likely PyAudio issue")
+        self._recording_token += 1
+        self._set_recording_state(
+            "idle",
+            button_text="Sprachaufnahme starten",
+            button_enabled=True,
+            status_text="Audio-Timeout",
+            status_color=DANGER,
+            action_text="Audio-Init Fehler nach 15s. Prüfe Mikrofonberechtigung.",
+            action_color=DANGER,
+        )
 
     def _stop_recording(self):
         logger.info("Stopping recording...")
-        self.action_status_label.config(text="Stope Aufnahme und speichere Audio…", fg=TEXT_PRI)
-        self.record_button.config(text="Sprachaufnahme starten")
-        
+        if self.recording_state != "recording":
+            self.action_status_label.config(text="Keine laufende Aufnahme zum Stoppen.", fg=TEXT_PRI)
+            return
+
+        token = self._recording_token
+        self._set_recording_state(
+            "stopping",
+            button_text="Speichere Aufnahme…",
+            button_enabled=False,
+            status_text="Stoppe Aufnahme…",
+            status_color=TEXT_PRI,
+            action_text="Stoppe Aufnahme und speichere Audio…",
+            action_color=TEXT_PRI,
+        )
+
         def stop_in_thread():
             try:
                 self.recorder.stop_recording()
-                self.is_recording = False
+                file_size = (
+                    os.path.getsize(self.recorder.output_filename)
+                    if os.path.exists(self.recorder.output_filename)
+                    else 0
+                )
                 logger.info("Recording stopped and saved")
-                self.recording_status.config(text="Aufnahme beendet", fg=TEXT_SEC)
-                self.action_status_label.config(text="Audio in temp_voice.wav gespeichert. Transkribiere…", fg=ACCENT)
-                self.transcription_label.config(text="Transkript: (wird transkribiert…)", fg=TEXT_SEC)
-                
-                # Start transcription in a separate thread
-                self._transcribe_async()
+                self._post_ui(self._on_recording_stopped, token, file_size)
             except Exception as exc:
                 logger.error(f"Recording stop error: {exc}", exc_info=True)
-                self.action_status_label.config(text=f"Stop-Fehler: {exc}", fg=DANGER)
-                self.recording_status.config(text="Stop-Fehler", fg=DANGER)
-        
+                self._post_ui(self._on_recording_stop_failed, token, str(exc))
+
         thread = threading.Thread(target=stop_in_thread, daemon=True)
         thread.start()
 
-    def _transcribe_async(self):
+    def _on_recording_stopped(self, token, file_size):
+        if token != self._recording_token:
+            return
+
+        if file_size < 100:
+            self._set_recording_state(
+                "idle",
+                button_text="Sprachaufnahme starten",
+                button_enabled=True,
+                status_text="Aufnahme leer",
+                status_color=DANGER,
+                action_text="Keine Audioframes gespeichert. Prüfe Mikrofon und Berechtigung.",
+                action_color=DANGER,
+            )
+            return
+
+        self._set_recording_state(
+            "transcribing",
+            button_text="Transkribiere…",
+            button_enabled=False,
+            status_text="Aufnahme gespeichert",
+            status_color=ACCENT,
+            action_text="Audio gespeichert. Transkribiere…",
+            action_color=ACCENT,
+            transcription_text="Transkript: (wird transkribiert…)",
+            transcription_color=TEXT_SEC,
+        )
+        self._transcribe_async(token)
+
+    def _on_recording_stop_failed(self, token, message):
+        if token != self._recording_token:
+            return
+
+        self._set_recording_state(
+            "idle",
+            button_text="Sprachaufnahme starten",
+            button_enabled=True,
+            status_text="Stop-Fehler",
+            status_color=DANGER,
+            action_text=f"Stop-Fehler: {message}",
+            action_color=DANGER,
+        )
+
+    def _transcribe_async(self, token):
         """Transcribe audio file in background thread."""
         def transcribe_in_thread():
             try:
                 logger.info("Starting speech-to-text transcription...")
-                # Use absolute path
                 output_file = os.path.join(ROOT_DIR, "temp_voice.wav")
                 logger.info(f"Transcribing file: {output_file}")
                 text = self.transcriber.transcribe(output_file)
-                
-                if text:
-                    self.transcribed_text = text
-                    logger.info(f"Transcription complete: {text}")
-                    self.transcription_label.config(text=f"Transkript: {text}", fg=ACCENT)
-                    self.action_status_label.config(text="Transkription erfolgreich.", fg=ACCENT)
-                else:
-                    logger.warning("Transcription returned empty text")
-                    self.transcription_label.config(text="Transkript: (konnte nicht transkribieren)", fg=DANGER)
-                    self.action_status_label.config(text="Transkription fehlgeschlagen.", fg=DANGER)
-                    
+                self._post_ui(self._on_transcription_finished, token, text)
             except Exception as exc:
                 logger.error(f"Transcription error: {exc}", exc_info=True)
-                self.transcription_label.config(text=f"Transkript: Fehler - {exc}", fg=DANGER)
-                self.action_status_label.config(text=f"Transkriptionsfehler: {exc}", fg=DANGER)
-        
+                self._post_ui(self._on_transcription_failed, token, str(exc))
+
         thread = threading.Thread(target=transcribe_in_thread, daemon=True)
         thread.start()
 
-    def _on_send_to_api(self):
-        if self.is_recording:
-            self.action_status_label.config(text="Beende zuerst die Aufnahme…", fg=TEXT_PRI)
-            self._stop_recording()
+    def _on_transcription_finished(self, token, text):
+        if token != self._recording_token:
+            return
 
-        payload = self.last_logged_gesture or "NONE"
-        self.action_status_label.config(text=f"Sende Geste an Middleware: {payload}", fg=TEXT_PRI)
-        sent = send_gesture_to_middleware(payload)
-
-        if sent:
-            self.recording_status.config(text=f"Geste gesendet: {payload}", fg=ACCENT)
-            self.action_status_label.config(text="Middleware erfolgreich kontaktiert.", fg=ACCENT)
+        self.transcribed_text = text or ""
+        if text:
+            logger.info(f"Transcription complete: {text}")
+            self._set_recording_state(
+                "idle",
+                button_text="Sprachaufnahme starten",
+                button_enabled=True,
+                status_text="Aufnahme beendet",
+                status_color=TEXT_SEC,
+                action_text="Transkription erfolgreich.",
+                action_color=ACCENT,
+                transcription_text=f"Transkript: {text}",
+                transcription_color=ACCENT,
+            )
         else:
-            self.recording_status.config(text="Middleware nicht erreichbar", fg=DANGER)
-            self.action_status_label.config(text="Senden fehlgeschlagen. Prüfe Middleware.", fg=DANGER)
+            logger.warning("Transcription returned empty text")
+            self._set_recording_state(
+                "idle",
+                button_text="Sprachaufnahme starten",
+                button_enabled=True,
+                status_text="Aufnahme beendet",
+                status_color=TEXT_SEC,
+                action_text="Transkription fehlgeschlagen.",
+                action_color=DANGER,
+                transcription_text="Transkript: (konnte nicht transkribieren)",
+                transcription_color=DANGER,
+            )
+
+    def _on_transcription_failed(self, token, message):
+        if token != self._recording_token:
+            return
+
+        self._set_recording_state(
+            "idle",
+            button_text="Sprachaufnahme starten",
+            button_enabled=True,
+            status_text="Aufnahme beendet",
+            status_color=TEXT_SEC,
+            action_text=f"Transkriptionsfehler: {message}",
+            action_color=DANGER,
+            transcription_text=f"Transkript: Fehler - {message}",
+            transcription_color=DANGER,
+        )
+
+    def _on_evaluate_intent(self):
+        if self.recording_state == "recording":
+            self.action_status_label.config(text="Beende zuerst die Aufnahme. Danach erneut auswerten.", fg=TEXT_PRI)
+            self._stop_recording()
+            return
+        if self.recording_state in {"starting", "stopping", "transcribing"}:
+            self.action_status_label.config(text="Bitte warten, Audio wird noch verarbeitet.", fg=TEXT_PRI)
+            return
+        if self.intent_in_progress:
+            self.action_status_label.config(text="Intent-Auswertung läuft bereits.", fg=TEXT_PRI)
+            return
+
+        transcript = (self.transcribed_text or "").strip()
+        gesture = self.last_logged_gesture or "NONE"
+        self.intent_in_progress = True
+        self.api_button.config(
+            text="Werte Intent aus…",
+            state=tk.DISABLED,
+            bg=TEXT_DIM,
+            fg=BG_CARD,
+            activebackground=TEXT_DIM,
+            activeforeground=BG_CARD,
+        )
+        self.intent_label.config(text="Intent: (wird ausgewertet…)", fg=TEXT_SEC)
+        self.action_status_label.config(
+            text=f"Lokale Ollama-Auswertung: Sprache + Geste ({gesture})",
+            fg=TEXT_PRI,
+        )
+
+        def interpret_in_thread():
+            try:
+                result = self.intent_client.interpret(
+                    transcript=transcript,
+                    gesture=gesture,
+                    context=INTENT_CONTEXT,
+                )
+                self._post_ui(self._on_intent_result, result)
+            except OllamaIntentError as exc:
+                self._post_ui(self._on_intent_error, str(exc))
+            except Exception as exc:
+                logger.error(f"Intent parsing failed: {exc}", exc_info=True)
+                self._post_ui(self._on_intent_error, f"Intent-Fehler: {exc}")
+
+        threading.Thread(target=interpret_in_thread, daemon=True).start()
+
+    def _on_intent_result(self, result):
+        self.intent_in_progress = False
+        self.api_button.config(
+            text="Intent auswerten",
+            state=tk.NORMAL,
+            bg=ACCENT_DIM,
+            fg=BG,
+            activebackground=ACCENT,
+            activeforeground=BG,
+        )
+        self.intent_label.config(text=f"Intent: {self._format_intent_result(result)}", fg=ACCENT)
+        if result.get("error"):
+            self.action_status_label.config(text=result["error"], fg=DANGER)
+        elif result.get("needs_clarification"):
+            clarification = result.get("clarification") or "Bitte Eingabe wiederholen."
+            self.action_status_label.config(text=f"Rückfrage: {clarification}", fg="#f0c040")
+        else:
+            self.action_status_label.config(text="Intent erfolgreich ausgewertet.", fg=ACCENT)
+
+    def _on_intent_error(self, message):
+        self.intent_in_progress = False
+        self.api_button.config(
+            text="Intent auswerten",
+            state=tk.NORMAL,
+            bg=ACCENT_DIM,
+            fg=BG,
+            activebackground=ACCENT,
+            activeforeground=BG,
+        )
+        self.intent_label.config(text="Intent: —", fg=TEXT_DIM)
+        self.recording_status.config(text="Ollama nicht erreichbar", fg=DANGER)
+        self.action_status_label.config(text=message, fg=DANGER)
+
+    def _format_intent_result(self, result):
+        intent = result.get("intent", "unknown")
+        action = result.get("action", "unknown")
+        target = result.get("target", "unknown")
+        value = result.get("value") or "-"
+        modalities = result.get("used_modalities", "-")
+        confidence = result.get("llm_confidence_estimate", 0.0)
+        return (
+            f"{intent} | action={action}, target={target}, value={value}, "
+            f"modalities={modalities}, llm_conf={confidence:.2f}"
+        )
 
     def _log_manual(self, gesture_id):
         self._log_entry(gesture_id, source="manual")
@@ -772,6 +1059,13 @@ class GestureGUI:
         with state.lock:
             state.log.clear()
         self.log_count.config(text="0 Einträge")
+
+    def _on_close(self):
+        try:
+            self.recorder.close()
+        except Exception as exc:
+            logger.error(f"Recorder cleanup failed: {exc}", exc_info=True)
+        self.root.destroy()
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

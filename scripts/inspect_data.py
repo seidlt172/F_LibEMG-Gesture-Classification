@@ -22,13 +22,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-# ── Settings ──────────────────────────────────────────────────────────────────
+try:
+    from scripts.gesture_config import GESTURE_DISPLAY_NAMES as GESTURES
+except ImportError:
+    from gesture_config import GESTURE_DISPLAY_NAMES as GESTURES
 
-GESTURES = {
-    0: "Fist",
-    1: "Open Hand",
-    2: "Index Point",
-}
+# ── Settings ──────────────────────────────────────────────────────────────────
 
 SAMPLING_RATE = 500      # Hz — used for x-axis time labels
 FLAT_STD_THRESHOLD = 10  # channels with std below this are flagged as dead

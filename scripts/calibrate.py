@@ -50,15 +50,14 @@ from libemg.feature_extractor import FeatureExtractor
 from libemg.emg_predictor import EMGClassifier
 from libemg.utils import get_windows
 
-# ── Settings ──────────────────────────────────────────────────────────────────
+try:
+    from scripts.gesture_config import GESTURE_DESCRIPTIONS
+    from scripts.gesture_config import GESTURE_DISPLAY_NAMES as GESTURES
+except ImportError:
+    from gesture_config import GESTURE_DESCRIPTIONS
+    from gesture_config import GESTURE_DISPLAY_NAMES as GESTURES
 
-GESTURES = {
-    0: "Rest",
-    1: "Daumen hoch",
-    2: "Swipe",
-    3: "Handgelenk drehen",
-    4: "Zeigen / Tippen",
-}
+# ── Settings ──────────────────────────────────────────────────────────────────
 
 GESTURE_ICONS = {
     0: "✋",
@@ -66,14 +65,6 @@ GESTURE_ICONS = {
     2: "👋",
     3: "🔄",
     4: "☝️",
-}
-
-GESTURE_DESCRIPTIONS = {
-    0: "Alle Finger locker eingeklappt,\nHand entspannt am Lenkrad",
-    1: "Faust schließen,\nnur Daumen gestreckt nach oben",
-    2: "Alle Finger zusammen,\nHandgelenk zügig seitlich schwenken",
-    3: "Unterarm rotieren (Pro/Supination),\nFinger locker gestreckt",
-    4: "Nur Zeigefinger gestreckt,\nrestliche Finger eingekrallt",
 }
 
 GESTURE_EXAMPLES = {

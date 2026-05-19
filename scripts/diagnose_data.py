@@ -14,13 +14,16 @@ No armband needed — works from saved CSVs.
 """
 
 import os
-import glob
 import numpy as np
 from libemg.feature_extractor import FeatureExtractor
 from libemg.utils import get_windows
 
+try:
+    from scripts.gesture_config import GESTURE_DISPLAY_NAMES as GESTURES
+except ImportError:
+    from gesture_config import GESTURE_DISPLAY_NAMES as GESTURES
+
 DATA_DIR  = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data', 'raw'))
-GESTURES  = {0: 'Rest', 1: 'Daumen hoch', 2: 'Swipe', 3: 'Handgelenk drehen', 4: 'Zeigen/Tippen'}
 
 WINDOW_SIZE   = 200
 WINDOW_INC    = 100

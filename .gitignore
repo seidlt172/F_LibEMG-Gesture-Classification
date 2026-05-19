@@ -1,40 +1,30 @@
-# Virtual environment
+# Virtual environments
+.venv/
 venv/
+env/
 
-# Python bytecode
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Jupyter checkpoints
+.cache/
 .ipynb_checkpoints/
 
-# Collected data (students record their own)
+# Collected and generated data
 data/raw/*
 !data/raw/.gitkeep
-
-# Generated inspection plots
+data/calibration/*
 data/inspect/*
 !data/inspect/.gitkeep
 
-# Trained models (students train their own)
+# Trained models
 models/*
 !models/.gitkeep
+
+# Temporary runtime files
+temp_voice.wav
 
 # OS files
 .DS_Store
 Thumbs.db
 desktop.ini
-
-# Virtuelle Umgebungen
-.venv/
-venv/
-env/
-
-# Python Cache (Schattenkopien, die wir vorhin gelöscht haben)
-__pycache__/
-*.pyc
-
-# Temporäre Audio- und Modelldateien (sollten auch nicht auf GitHub)
-temp_voice.wav
-models/clf/

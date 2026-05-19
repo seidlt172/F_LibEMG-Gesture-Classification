@@ -9,14 +9,7 @@ What it does:
     - Records EMG for a fixed duration while the student holds a gesture
     - Saves each trial as a CSV to data/raw/gesture_<id>/rep_<n>.csv
 
-Gesture IDs:
-    0 = Fist         (close all fingers into a fist)
-    1 = Open Hand    (spread fingers wide, palm facing forward)
-    2 = Index Point  (extend index finger, curl the rest; rotate wrist so
-                      the dorsal side faces up — different muscle recruitment
-                      from Fist even though both use flexors)
-
-You can add more gestures later by extending GESTURES below.
+Gesture IDs are defined centrally in scripts/gesture_config.py.
 
 Usage:
     Make sure mindrove_streamer.py is running in another terminal first.
@@ -32,15 +25,12 @@ import pickle
 import socket
 import time
 
-# ── Settings ──────────────────────────────────────────────────────────────────
+try:
+    from scripts.gesture_config import COLLECTION_GESTURES as GESTURES
+except ImportError:
+    from gesture_config import COLLECTION_GESTURES as GESTURES
 
-GESTURES = {
-    0: "Rest            (alle Finger locker eingeklappt, Hand entspannt am Lenkrad)",
-    1: "Daumen hoch     (Faust schließen, nur Daumen gestreckt nach oben)",
-    2: "Swipe           (alle Finger zusammen, Handgelenk zügig seitlich schwenken)",
-    3: "Handgelenk drehen (Unterarm rotieren pro/supination, Finger locker gestreckt)",
-    4: "Zeigen/Tippen   (nur Zeigefinger gestreckt, restliche Finger eingekrallt)",
-}
+# ── Settings ──────────────────────────────────────────────────────────────────
 
 N_REPS = 10          # number of repetitions per gesture
 RECORD_SECS = 3      # seconds of EMG recorded per rep

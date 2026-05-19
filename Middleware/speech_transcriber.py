@@ -66,7 +66,7 @@ class SpeechTranscriber:
                 audio_file_path,
                 language="de",  # German
                 task="transcribe",
-                fp16=False,  # Better compatibility on Windows
+                fp16=False,  # Better CPU compatibility across platforms
             )
             
             text = result.get("text", "").strip()

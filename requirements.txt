@@ -1,8 +1,18 @@
+# EMG, hardware, and signal processing
 libemg
 mindrove
 numpy
 matplotlib
 scikit-learn
+
+# GUI and calibration feedback
 pyqtgraph
 PyQt5
+pygame
+
+# Audio and local speech transcription
 PyAudio
+openai-whisper
+
+# Notebook workflow
+jupyterlab
