@@ -189,6 +189,11 @@ The pilot may use Wizard-of-Oz support if EMG or voice recognition is unreliable
 The Wizard is a fallback layer, not a replacement for logging real recognition
 behavior.
 
+If the prototype GUI is used during the pilot, manual gesture controls are
+operator/Wizard controls only. Participants should not click these controls.
+Manual GUI actions must be logged as Wizard/operator annotations and must not be
+counted as participant EMG input.
+
 Protocol:
 
 1. Real recognition is attempted first and logged.

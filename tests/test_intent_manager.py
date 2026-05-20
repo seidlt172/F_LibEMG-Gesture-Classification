@@ -56,6 +56,67 @@ class IntentManagerTests(unittest.TestCase):
         self.assertEqual(request_body["options"]["num_predict"], 160)
         self.assertEqual(request_body["options"]["num_ctx"], 2048)
 
+    def test_request_includes_manual_gesture_source(self):
+        client = OllamaIntentClient()
+        response = {
+            "message": {
+                "content": json.dumps({
+                    "intent": "adjust_volume",
+                    "action": "increase",
+                    "target": "volume",
+                    "value": "louder",
+                    "needs_clarification": False,
+                    "clarification": "",
+                    "used_modalities": "voice+gesture",
+                    "llm_confidence_estimate": 0.8,
+                })
+            }
+        }
+
+        with patch.object(client, "_post_chat", return_value=response) as post_chat:
+            client.interpret(
+                "Lautstaerke hoeher machen",
+                "Swipe",
+                None,
+                gesture_source="manual",
+            )
+
+        request_body = post_chat.call_args.args[0]
+        user_payload = json.loads(request_body["messages"][1]["content"])
+        self.assertEqual(user_payload["gesture"], "Swipe")
+        self.assertEqual(user_payload["gesture_source"], "manual")
+
+    def test_clear_voice_command_overrides_conflicting_unknown(self):
+        client = OllamaIntentClient()
+        response = {
+            "message": {
+                "content": json.dumps({
+                    "intent": "unknown",
+                    "action": "unknown",
+                    "target": "unknown",
+                    "value": "",
+                    "needs_clarification": True,
+                    "clarification": "Meinst du die Lautstaerke oder die Route?",
+                    "used_modalities": "voice+gesture",
+                    "llm_confidence_estimate": 0.2,
+                })
+            }
+        }
+
+        with patch.object(client, "_post_chat", return_value=response):
+            result = client.interpret(
+                "Lautstaerke hoeher machen",
+                "Swipe",
+                None,
+                gesture_source="manual",
+            )
+
+        self.assertEqual(result["intent"], "adjust_volume")
+        self.assertEqual(result["action"], "increase")
+        self.assertEqual(result["target"], "volume")
+        self.assertEqual(result["used_modalities"], "voice+gesture")
+        self.assertFalse(result["needs_clarification"])
+
     def test_invalid_json_returns_unknown_with_error(self):
         client = OllamaIntentClient()
         response = {"message": {"content": "not json"}}

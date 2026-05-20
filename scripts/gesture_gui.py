@@ -8,8 +8,8 @@ What it does:
     - Runs continuous predictions in the background
     - Every 2 seconds: shows the most stable gesture (majority vote)
     - "Einloggen" button to confirm the predicted gesture
-    - Manual buttons for all 5 gestures (fallback)
-    - Log list showing all confirmed gestures with timestamp
+    - Operator/Wizard buttons for manual fallback during pilot trials
+    - Log list showing structured gesture and trial events with timestamp
     - Logged data accessible via get_log() for later interface integration
 
 Usage:
@@ -24,10 +24,12 @@ import sys
 import pickle
 import socket
 import collections
+import json
 import queue
 import threading
 import time
 import tkinter as tk
+from tkinter import filedialog
 from tkinter import font as tkfont
 from datetime import datetime
 import numpy as np
@@ -47,6 +49,16 @@ from Middleware.speech_transcriber import SpeechTranscriber
 from libemg.feature_extractor import FeatureExtractor
 from scripts.gesture_config import GESTURE_DISPLAY_NAMES as GESTURE_NAMES
 from scripts.gesture_config import MANUAL_GESTURE_IDS
+from scripts.study_config import CATEGORIES
+from scripts.study_config import CONDITION_ORDERS
+from scripts.study_config import CONDITIONS
+from scripts.study_config import build_intent_context
+from scripts.study_config import filter_intent_inputs_for_condition
+from scripts.study_config import gesture_recognition_metadata
+from scripts.study_config import get_scenario
+from scripts.study_config import infer_multimodal_usage_pattern
+from scripts.study_config import make_trial_id
+from scripts.study_config import now_iso
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 
@@ -58,14 +70,11 @@ GESTURE_ICONS = {
     4: "☝️",
 }
 
-# Manual buttons — Rest excluded, Unknown added as fallback
+# Operator/Wizard buttons. Rest is excluded because it is a neutral state.
 MANUAL_BUTTONS = {
     gid: (GESTURE_ICONS[gid], GESTURE_NAMES[gid])
     for gid in MANUAL_GESTURE_IDS
 }
-MANUAL_BUTTONS.update({
-    -1: ("❓", "Unknown"),
-})
 
 WINDOW_SIZE             = 200
 FEATURE_GROUP           = 'HTD'
@@ -85,16 +94,16 @@ INTENT_CONTEXT = (
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 
-BG          = "#0f0f13"
-BG_CARD     = "#1a1a22"
-BG_CARD2    = "#22222e"
-ACCENT      = "#00e5a0"
-ACCENT_DIM  = "#00a870"
-TEXT_PRI    = "#f0f0f0"
-TEXT_SEC    = "#888899"
-TEXT_DIM    = "#444455"
-DANGER      = "#ff4466"
-BORDER      = "#2a2a38"
+BG          = "#111318"
+BG_CARD     = "#191d24"
+BG_CARD2    = "#242a33"
+ACCENT      = "#31c7b2"
+ACCENT_DIM  = "#239886"
+TEXT_PRI    = "#f4f7fb"
+TEXT_SEC    = "#a7b0bf"
+TEXT_DIM    = "#677083"
+DANGER      = "#ef5f75"
+BORDER      = "#2a303a"
 
 # ── Shared state ──────────────────────────────────────────────────────────────
 
@@ -105,7 +114,8 @@ class PredictionState:
         self.current_display   = None   # majority-voted label shown in UI
         self.current_confidence = 0.0
         self.streamer_ok       = False
-        self.log               = []     # list of (datetime, label_str)
+        self.log               = []     # structured operator/study events
+        self.trial_log         = []     # completed pilot trial summaries
         self.live_feed         = []     # raw predictions, pruned to last 10s
         self.battery           = None   # float 0-100 or None
 
@@ -222,7 +232,7 @@ def get_majority_vote():
 # ── Log access (for later interface integration) ──────────────────────────────
 
 def get_log():
-    """Returns list of (datetime, gesture_name) — call this from your interface."""
+    """Returns structured operator/study events — call this from your interface."""
     with state.lock:
         return list(state.log)
 
@@ -232,15 +242,32 @@ def get_log():
 class GestureGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("EMG Gesture Recognition")
+        self.root.title("Pilot Operator Console")
         self.root.configure(bg=BG)
 
         self.last_logged_gesture = "NONE"
+        self.last_logged_gesture_source = "none"
+        self.last_logged_gesture_confidence = None
+        self.last_recognition_outcome = "none"
+        self.last_wizard_intervention = False
+        self.last_intent_result = None
         self.is_recording = False
         self.recording_state = "idle"
         self.recording_start_time = 0.0
         self._recording_token = 0
         self._ui_queue = queue.Queue()
+        self.trial_counter = 0
+        self.current_trial = None
+        self.current_trial_events = []
+        self.participant_id_var = tk.StringVar(value="P001")
+        self.condition_order_var = tk.StringVar(value=CONDITION_ORDERS[0])
+        self.condition_var = tk.StringVar(value=CONDITIONS[2])
+        self.category_var = tk.StringVar(value=CATEGORIES[0])
+        self.scenario_id_var = tk.StringVar(value="")
+        self.scenario_prompt_var = tk.StringVar(value="")
+        self.notes_var = tk.StringVar(value="")
+        self.condition_var.trace_add("write", lambda *_: self._update_scenario_from_selection())
+        self.category_var.trace_add("write", lambda *_: self._update_scenario_from_selection())
         # Use absolute path for audio file
         audio_file_path = os.path.join(ROOT_DIR, "temp_voice.wav")
         self.recorder = AudioRecorder(output_filename=audio_file_path)
@@ -248,6 +275,7 @@ class GestureGUI:
         self.intent_client = OllamaIntentClient.from_env()
         self.transcribed_text = ""
         self.intent_in_progress = False
+        self._update_scenario_from_selection()
 
         self._build_fonts()
         self._build_ui()
@@ -256,260 +284,409 @@ class GestureGUI:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build_fonts(self):
-        self.font_title    = tkfont.Font(family="Courier New", size=13, weight="bold")
-        self.font_gesture  = tkfont.Font(family="Courier New", size=22, weight="bold")
-        self.font_icon     = tkfont.Font(family="Courier New", size=22)
-        self.font_conf     = tkfont.Font(family="Courier New", size=11)
-        self.font_btn      = tkfont.Font(family="Courier New", size=12, weight="bold")
-        self.font_btn_sm   = tkfont.Font(family="Courier New", size=11, weight="bold")
-        self.font_log      = tkfont.Font(family="Courier New", size=12)
-        self.font_feed     = tkfont.Font(family="Courier New", size=11)
-        self.font_status   = tkfont.Font(family="Courier New", size=9)
-        self.font_header   = tkfont.Font(family="Courier New", size=12, weight="bold")
+        family = "Helvetica"
+        mono = "Menlo"
+        self.font_title    = tkfont.Font(family=family, size=17, weight="bold")
+        self.font_gesture  = tkfont.Font(family=family, size=25, weight="bold")
+        self.font_icon     = tkfont.Font(family=family, size=28)
+        self.font_conf     = tkfont.Font(family=family, size=11)
+        self.font_btn      = tkfont.Font(family=family, size=12, weight="bold")
+        self.font_btn_sm   = tkfont.Font(family=family, size=11, weight="bold")
+        self.font_log      = tkfont.Font(family=mono, size=11)
+        self.font_feed     = tkfont.Font(family=mono, size=10)
+        self.font_status   = tkfont.Font(family=family, size=10)
+        self.font_header   = tkfont.Font(family=family, size=12, weight="bold")
 
     def _build_ui(self):
         root = self.root
-        pad  = 16
+        pad = 18
+        root.configure(bg=BG)
 
-        # ── Header ────────────────────────────────────────────────────────────
-        header = tk.Frame(root, bg=BG, pady=pad)
-        header.pack(fill="x", padx=pad)
+        header = tk.Frame(root, bg=BG)
+        header.pack(fill="x", padx=pad, pady=(16, 10))
 
-        tk.Label(header, text="EMG GESTURE RECOGNITION",
-                 font=self.font_title, bg=BG, fg=ACCENT).pack(side="left")
+        title_group = tk.Frame(header, bg=BG)
+        title_group.pack(side="left")
+        tk.Label(
+            title_group,
+            text="Pilot Operator Console",
+            font=self.font_title,
+            bg=BG,
+            fg=TEXT_PRI,
+        ).pack(anchor="w")
+        tk.Label(
+            title_group,
+            text="EMG + Voice in-car interaction study",
+            font=self.font_status,
+            bg=BG,
+            fg=TEXT_SEC,
+        ).pack(anchor="w", pady=(2, 0))
 
-        self.battery_label = tk.Label(header, text="🔋 —",
-                                      font=self.font_header, bg=BG, fg=TEXT_SEC)
-        self.battery_label.pack(side="left", padx=(24, 0))
-
-        self.status_dot = tk.Label(header, text="● NO STREAM",
-                                   font=self.font_header, bg=BG, fg=DANGER)
+        status_group = tk.Frame(header, bg=BG)
+        status_group.pack(side="right")
+        self.status_dot = tk.Label(
+            status_group,
+            text="NO STREAM",
+            font=self.font_header,
+            bg=BG,
+            fg=DANGER,
+        )
         self.status_dot.pack(side="right")
+        self.battery_label = tk.Label(
+            status_group,
+            text="Battery —",
+            font=self.font_header,
+            bg=BG,
+            fg=TEXT_DIM,
+        )
+        self.battery_label.pack(side="right", padx=(0, 24))
 
-        tk.Frame(root, bg=BORDER, height=1).pack(fill="x", padx=pad)
+        study_card = tk.Frame(root, bg=BG_CARD, padx=16, pady=14)
+        study_card.pack(fill="x", padx=pad, pady=(0, 14))
+        self._add_border(study_card)
 
-        # ── Main content ──────────────────────────────────────────────────────
+        study_header = tk.Frame(study_card, bg=BG_CARD)
+        study_header.pack(fill="x", pady=(0, 10))
+        tk.Label(
+            study_header,
+            text="Study Setup",
+            font=self.font_header,
+            bg=BG_CARD,
+            fg=TEXT_PRI,
+        ).pack(side="left")
+        self.trial_status_label = tk.Label(
+            study_header,
+            text="Kein aktiver Trial",
+            font=self.font_status,
+            bg=BG_CARD,
+            fg=TEXT_DIM,
+        )
+        self.trial_status_label.pack(side="right")
+
+        setup_row = tk.Frame(study_card, bg=BG_CARD)
+        setup_row.pack(fill="x")
+        self._build_labeled_entry(setup_row, "Participant", self.participant_id_var, width=9)
+        self._build_labeled_option(setup_row, "Order", self.condition_order_var, CONDITION_ORDERS, width=5)
+        self._build_labeled_option(setup_row, "Condition", self.condition_var, CONDITIONS, width=13)
+        self._build_labeled_option(setup_row, "Category", self.category_var, CATEGORIES, width=13)
+        self._build_labeled_entry(setup_row, "Notes", self.notes_var, width=24)
+
+        scenario_row = tk.Frame(study_card, bg=BG_CARD)
+        scenario_row.pack(fill="x", pady=(10, 0))
+        tk.Label(
+            scenario_row,
+            textvariable=self.scenario_id_var,
+            font=self.font_header,
+            bg=BG_CARD2,
+            fg=ACCENT,
+            padx=10,
+            pady=6,
+        ).pack(side="left")
+        self.scenario_prompt_label = tk.Label(
+            scenario_row,
+            textvariable=self.scenario_prompt_var,
+            font=self.font_status,
+            bg=BG_CARD,
+            fg=TEXT_SEC,
+            wraplength=620,
+            justify="left",
+            anchor="w",
+        )
+        self.scenario_prompt_label.pack(side="left", fill="x", expand=True, padx=(12, 12))
+
+        trial_buttons = tk.Frame(scenario_row, bg=BG_CARD)
+        trial_buttons.pack(side="right")
+        self.start_trial_button = self._make_button(
+            trial_buttons,
+            "Trial starten",
+            self._start_trial,
+            primary=True,
+        )
+        self.start_trial_button.pack(side="left", padx=(0, 6))
+        self.finish_trial_button = self._make_button(
+            trial_buttons,
+            "Erfolgreich beenden",
+            lambda: self._finish_trial(True),
+        )
+        self.finish_trial_button.pack(side="left", padx=6)
+        self.abort_trial_button = self._make_button(
+            trial_buttons,
+            "Abbrechen",
+            lambda: self._finish_trial(False),
+            danger=True,
+        )
+        self.abort_trial_button.pack(side="left", padx=(6, 0))
+
         content = tk.Frame(root, bg=BG)
-        content.pack(fill="both", expand=True, padx=pad, pady=(pad, 0))
+        content.pack(fill="both", expand=True, padx=pad, pady=(0, pad))
+        content.grid_columnconfigure(0, weight=1, minsize=330)
+        content.grid_columnconfigure(1, weight=1, minsize=330)
+        content.grid_columnconfigure(2, weight=2, minsize=430)
+        content.grid_rowconfigure(0, weight=1)
 
-        # Left column — fixed width to avoid jumping
-        left = tk.Frame(content, bg=BG, width=320)
-        left.pack(side="left", fill="y")
-        left.pack_propagate(False)
+        input_col = tk.Frame(content, bg=BG)
+        input_col.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        operator_col = tk.Frame(content, bg=BG)
+        operator_col.grid(row=0, column=1, sticky="nsew", padx=12)
+        log_col = tk.Frame(content, bg=BG)
+        log_col.grid(row=0, column=2, sticky="nsew", padx=(12, 0))
 
-        # Prediction card
-        pred_card = tk.Frame(left, bg=BG_CARD, padx=16, pady=6,
-                             relief="flat", bd=0)
-        pred_card.pack(fill="x", pady=(0, 5))
-        self._add_border(pred_card)
+        pred_card = self._make_card(input_col)
+        pred_card.pack(fill="x")
+        self._section_title(pred_card, "Participant Input", "Live EMG")
 
-        tk.Label(pred_card, text="AKTUELLE GESTE",
-                 font=self.font_status, bg=BG_CARD, fg=TEXT_SEC).pack(anchor="w")
+        self.icon_label = tk.Label(pred_card, text="—", font=self.font_icon, bg=BG_CARD, fg=TEXT_PRI)
+        self.icon_label.pack(pady=(8, 0))
 
-        self.icon_label = tk.Label(pred_card, text="—",
-                                   font=self.font_icon, bg=BG_CARD, fg=TEXT_PRI)
-        self.icon_label.pack(pady=(2, 0))
+        self.gesture_label = tk.Label(
+            pred_card,
+            text="Warte auf Daten...",
+            font=self.font_gesture,
+            bg=BG_CARD,
+            fg=TEXT_DIM,
+            width=18,
+            anchor="center",
+        )
+        self.gesture_label.pack(pady=(2, 10))
 
-        # Fixed-width gesture label — anchored to longest gesture name
-        self.gesture_label = tk.Label(pred_card,
-                                      text="Zeigen / Tippen",
-                                      font=self.font_gesture, bg=BG_CARD,
-                                      fg=TEXT_DIM, width=18, anchor="center")
-        self.gesture_label.pack(pady=(1, 4))
+        conf_row = tk.Frame(pred_card, bg=BG_CARD)
+        conf_row.pack(fill="x")
+        tk.Label(conf_row, text="Confidence", font=self.font_status, bg=BG_CARD, fg=TEXT_DIM).pack(side="left")
+        self.conf_label = tk.Label(conf_row, text="—", font=self.font_conf, bg=BG_CARD, fg=TEXT_SEC)
+        self.conf_label.pack(side="right")
 
-        # Confidence bar
-        conf_frame = tk.Frame(pred_card, bg=BG_CARD)
-        conf_frame.pack(fill="x")
-
-        tk.Label(conf_frame, text="KONFIDENZ",
-                 font=self.font_status, bg=BG_CARD, fg=TEXT_SEC).pack(anchor="w")
-
-        self.conf_bar_bg = tk.Frame(conf_frame, bg=BG_CARD2, height=8)
-        self.conf_bar_bg.pack(fill="x", pady=(4, 0))
+        self.conf_bar_bg = tk.Frame(pred_card, bg=BG_CARD2, height=8)
+        self.conf_bar_bg.pack(fill="x", pady=(6, 6))
         self.conf_bar_bg.pack_propagate(False)
-
         self.conf_bar = tk.Frame(self.conf_bar_bg, bg=ACCENT_DIM, height=8, width=0)
         self.conf_bar.place(x=0, y=0, relheight=1.0)
 
-        # Conf % and countdown timer in one row
-        conf_row = tk.Frame(pred_card, bg=BG_CARD)
-        conf_row.pack(fill="x", pady=(4, 0))
-
-        self.countdown_label = tk.Label(conf_row, text="2.00s",
-                                        font=self.font_status, bg=BG_CARD, fg=TEXT_DIM)
-        self.countdown_label.pack(side="left")
-
-        self.conf_label = tk.Label(conf_row, text="—",
-                                   font=self.font_conf, bg=BG_CARD, fg=TEXT_SEC)
-        self.conf_label.pack(side="right")
-
+        timer_row = tk.Frame(pred_card, bg=BG_CARD)
+        timer_row.pack(fill="x", pady=(0, 10))
+        tk.Label(timer_row, text="Vote window", font=self.font_status, bg=BG_CARD, fg=TEXT_DIM).pack(side="left")
+        self.countdown_label = tk.Label(timer_row, text="2.00s", font=self.font_status, bg=BG_CARD, fg=TEXT_SEC)
+        self.countdown_label.pack(side="right")
         self._countdown_start = time.time()
         self._update_countdown()
 
-        # Einloggen button — Label-based for reliable macOS styling
         self.log_btn = tk.Label(
-            left,
-            text="✓  EINLOGGEN",
+            pred_card,
+            text="Einloggen",
             font=self.font_btn,
-            bg=ACCENT_DIM, fg=BG,
-            pady=7, cursor="hand2",
+            bg=ACCENT_DIM,
+            fg=BG,
+            pady=10,
+            cursor="hand2",
             anchor="center",
         )
-        self.log_btn.pack(fill="x", pady=(0, 5))
+        self.log_btn.pack(fill="x", pady=(4, 8))
         self.log_btn.bind("<Button-1>", lambda e: self._log_predicted())
         self.log_btn.bind("<Enter>", lambda e: self.log_btn.config(bg=ACCENT))
         self.log_btn.bind("<Leave>", lambda e: self.log_btn.config(bg=ACCENT_DIM))
         self._log_btn_enabled = False
 
-        self.last_gesture_label = tk.Label(left,
-                                          text=f"Letzte Geste: {self.last_logged_gesture}",
-                                          font=self.font_status, bg=BG, fg=TEXT_SEC,
-                                          anchor="w")
-        self.last_gesture_label.pack(fill="x", pady=(0, 8))
+        self.last_gesture_label = tk.Label(
+            pred_card,
+            text=f"Letzte Geste: {self.last_logged_gesture}",
+            font=self.font_status,
+            bg=BG_CARD,
+            fg=TEXT_SEC,
+            anchor="w",
+        )
+        self.last_gesture_label.pack(fill="x")
 
-        # Manual gesture buttons
-        manual_card = tk.Frame(left, bg=BG_CARD, padx=12, pady=6)
-        manual_card.pack(fill="both", expand=True, pady=(0, 5))
-        self._add_border(manual_card)
+        audio_card = self._make_card(input_col)
+        audio_card.pack(fill="x", pady=(14, 0))
+        self._section_title(audio_card, "Voice", "Recording")
 
-        tk.Label(manual_card, text="MANUELL EINLOGGEN",
-                 font=self.font_status, bg=BG_CARD, fg=TEXT_SEC).pack(anchor="w", pady=(0, 4))
+        self.record_button = self._make_button(
+            audio_card,
+            "Sprachaufnahme starten",
+            self._on_toggle_recording,
+            primary=True,
+        )
+        self.record_button.pack(fill="x", pady=(10, 8))
 
-        btn_grid = tk.Frame(manual_card, bg=BG_CARD)
-        btn_grid.pack(fill="both", expand=True)
+        self.recording_status = tk.Label(audio_card, text="Aufnahme gestoppt",
+                                         font=self.font_status, bg=BG_CARD, fg=TEXT_DIM)
+        self.recording_status.pack(fill="x")
 
-        for gid, (icon, gname) in MANUAL_BUTTONS.items():
+        self.transcription_label = tk.Label(
+            audio_card,
+            text="Transkript: —",
+            font=self.font_status,
+            bg=BG_CARD,
+            fg=TEXT_DIM,
+            wraplength=300,
+            justify="left",
+            anchor="w",
+        )
+        self.transcription_label.pack(fill="x", pady=(10, 0))
+
+        wizard_card = self._make_card(operator_col)
+        wizard_card.pack(fill="x")
+        self._section_title(wizard_card, "Operator / Wizard", "Fallback controls")
+        tk.Label(
+            wizard_card,
+            text="Nur durch die Durchführenden bedienen. Klicks werden als Wizard-Eingriff geloggt.",
+            font=self.font_status,
+            bg=BG_CARD,
+            fg=TEXT_DIM,
+            wraplength=300,
+            justify="left",
+        ).pack(fill="x", pady=(4, 10))
+
+        btn_grid = tk.Frame(wizard_card, bg=BG_CARD)
+        btn_grid.pack(fill="x")
+        for idx, (gid, (icon, gname)) in enumerate(MANUAL_BUTTONS.items()):
             lbl = tk.Label(
                 btn_grid,
                 text=f"{icon}  {gname}",
                 font=self.font_btn_sm,
-                bg="#1a1a1a", fg="#ffffff",
-                pady=6, cursor="hand2",
+                bg=BG_CARD2,
+                fg=TEXT_PRI,
+                pady=9,
+                cursor="hand2",
                 anchor="center",
             )
-            lbl.pack(fill="both", expand=True, pady=2)
+            lbl.grid(row=idx // 2, column=idx % 2, sticky="ew", padx=4, pady=4)
             lbl.bind("<Button-1>", lambda e, g=gid: self._log_manual(g))
-            lbl.bind("<Enter>",    lambda e, w=lbl: w.config(bg=ACCENT_DIM, fg="#000000"))
-            lbl.bind("<Leave>",    lambda e, w=lbl: w.config(bg="#1a1a1a",  fg="#ffffff"))
+            lbl.bind("<Enter>", lambda e, w=lbl: w.config(bg=ACCENT_DIM, fg=BG))
+            lbl.bind("<Leave>", lambda e, w=lbl: w.config(bg=BG_CARD2, fg=TEXT_PRI))
+        btn_grid.grid_columnconfigure(0, weight=1)
+        btn_grid.grid_columnconfigure(1, weight=1)
 
-        audio_card = tk.Frame(left, bg=BG_CARD, padx=12, pady=12)
-        audio_card.pack(fill="x", pady=(0, 5))
-        self._add_border(audio_card)
+        unknown_lbl = tk.Label(
+            wizard_card,
+            text="No recognition",
+            font=self.font_btn_sm,
+            bg="#3a2028",
+            fg="#ffffff",
+            pady=9,
+            cursor="hand2",
+            anchor="center",
+        )
+        unknown_lbl.pack(fill="x", pady=(10, 0))
+        unknown_lbl.bind("<Button-1>", lambda e: self._log_no_recognition())
+        unknown_lbl.bind("<Enter>", lambda e: unknown_lbl.config(bg=DANGER, fg="#ffffff"))
+        unknown_lbl.bind("<Leave>", lambda e: unknown_lbl.config(bg="#3a2028", fg="#ffffff"))
 
-        tk.Label(audio_card, text="SPRACHAUFNAHME",
-                 font=self.font_status, bg=BG_CARD, fg=TEXT_SEC).pack(anchor="w")
+        intent_card = self._make_card(operator_col)
+        intent_card.pack(fill="x", pady=(14, 0))
+        self._section_title(intent_card, "Intent", "Local Ollama")
 
-        self.record_button = tk.Button(audio_card, text="Sprachaufnahme starten",
-                                       font=self.font_btn_sm, bg=ACCENT_DIM, fg=BG,
-                                       activebackground=ACCENT, activeforeground=BG,
-                                       relief="flat", bd=0, cursor="hand2",
-                                       command=self._on_toggle_recording)
-        self.record_button.pack(fill="x", pady=(8, 4))
+        self.api_button = self._make_button(
+            intent_card,
+            "Intent auswerten",
+            self._on_evaluate_intent,
+            primary=True,
+        )
+        self.api_button.pack(fill="x", pady=(10, 8))
 
-        self.api_button = tk.Button(audio_card, text="Intent auswerten",
-                                    font=self.font_btn_sm, bg=ACCENT_DIM, fg=BG,
-                                    activebackground=ACCENT, activeforeground=BG,
-                                    relief="flat", bd=0, cursor="hand2",
-                                    command=self._on_evaluate_intent)
-        self.api_button.pack(fill="x")
+        self.action_status_label = tk.Label(
+            intent_card,
+            text="Bereit.",
+            font=self.font_status,
+            bg=BG_CARD,
+            fg=TEXT_SEC,
+            wraplength=300,
+            justify="left",
+            anchor="w",
+        )
+        self.action_status_label.pack(fill="x")
 
-        self.recording_status = tk.Label(audio_card, text="Aufnahme gestoppt",
-                                         font=self.font_status, bg=BG_CARD, fg=TEXT_DIM)
-        self.recording_status.pack(fill="x", pady=(8, 0))
+        self.intent_label = tk.Label(
+            intent_card,
+            text="Intent: —",
+            font=self.font_status,
+            bg=BG_CARD,
+            fg=TEXT_DIM,
+            wraplength=300,
+            justify="left",
+            anchor="w",
+        )
+        self.intent_label.pack(fill="x", pady=(10, 0))
 
-        self.action_status_label = tk.Label(audio_card, text="Bereit.",
-                                            font=self.font_status, bg=BG_CARD, fg=TEXT_SEC)
-        self.action_status_label.pack(fill="x", pady=(4, 0))
-
-        self.transcription_label = tk.Label(audio_card, text="Transkript: —",
-                                            font=self.font_status, bg=BG_CARD, fg=TEXT_DIM,
-                                            wraplength=280, justify="left")
-        self.transcription_label.pack(fill="x", pady=(8, 0))
-
-        self.intent_label = tk.Label(audio_card, text="Intent: —",
-                                     font=self.font_status, bg=BG_CARD, fg=TEXT_DIM,
-                                     wraplength=280, justify="left")
-        self.intent_label.pack(fill="x", pady=(6, 0))
-
-        # Right column — Log
-        right = tk.Frame(content, bg=BG)
-        right.pack(side="right", fill="both", expand=True, padx=(12, 0))
-
-        log_card = tk.Frame(right, bg=BG_CARD, padx=16, pady=16)
+        log_card = self._make_card(log_col)
         log_card.pack(fill="both", expand=True)
-        self._add_border(log_card)
-
         log_header = tk.Frame(log_card, bg=BG_CARD)
         log_header.pack(fill="x", pady=(0, 10))
+        log_title = tk.Frame(log_header, bg=BG_CARD)
+        log_title.pack(side="left")
+        tk.Label(log_title, text="Session Log", font=self.font_header,
+                 bg=BG_CARD, fg=TEXT_PRI).pack(anchor="w")
+        tk.Label(log_title, text="Events", font=self.font_status,
+                 bg=BG_CARD, fg=TEXT_DIM).pack(anchor="w", pady=(2, 0))
 
-        tk.Label(log_header, text="LOG",
-                 font=self.font_status, bg=BG_CARD, fg=TEXT_SEC).pack(side="left")
-
+        tk.Button(log_header, text="EXPORT JSONL",
+                  font=self.font_status, bg=BG_CARD, fg=ACCENT,
+                  activebackground=BG_CARD, activeforeground=TEXT_PRI,
+                  relief="flat", bd=0, cursor="hand2",
+                  command=self._export_trial_log).pack(side="right")
         tk.Button(log_header, text="LEEREN",
                   font=self.font_status, bg=BG_CARD, fg=TEXT_DIM,
                   activebackground=BG_CARD, activeforeground=DANGER,
                   relief="flat", bd=0, cursor="hand2",
-                  command=self._clear_log).pack(side="right")
+                  command=self._clear_log).pack(side="right", padx=(0, 12))
 
-        # Scrollable log list
         log_scroll_frame = tk.Frame(log_card, bg=BG_CARD)
         log_scroll_frame.pack(fill="both", expand=True)
-
-        scrollbar = tk.Scrollbar(log_scroll_frame, bg=BG_CARD2,
-                                 troughcolor=BG_CARD, width=6)
+        scrollbar = tk.Scrollbar(log_scroll_frame, bg=BG_CARD2, troughcolor=BG_CARD, width=6)
         scrollbar.pack(side="right", fill="y")
-
         self.log_listbox = tk.Listbox(
             log_scroll_frame,
             font=self.font_log,
-            bg=BG_CARD, fg=TEXT_PRI,
-            selectbackground=ACCENT_DIM, selectforeground=BG,
-            relief="flat", bd=0,
+            bg=BG_CARD,
+            fg=TEXT_PRI,
+            selectbackground=ACCENT_DIM,
+            selectforeground=BG,
+            relief="flat",
+            bd=0,
             highlightthickness=0,
             yscrollcommand=scrollbar.set,
-            width=28, height=20,
+            width=48,
+            height=12,
         )
         self.log_listbox.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.log_listbox.yview)
 
-        self.log_count = tk.Label(log_card, text="0 Einträge",
+        log_footer = tk.Frame(log_card, bg=BG_CARD)
+        log_footer.pack(fill="x", pady=(8, 0))
+        self.log_count = tk.Label(log_footer, text="0 Einträge",
                                   font=self.font_status, bg=BG_CARD, fg=TEXT_DIM)
-        self.log_count.pack(anchor="e", pady=(8, 0))
+        self.log_count.pack(side="left")
 
-        # Far right column — Live Feed
-        far_right = tk.Frame(content, bg=BG)
-        far_right.pack(side="right", fill="both", expand=True, padx=(12, 0))
-
-        feed_card = tk.Frame(far_right, bg=BG_CARD, padx=16, pady=16)
-        feed_card.pack(fill="both", expand=True)
-        self._add_border(feed_card)
-
+        feed_card = self._make_card(log_col)
+        feed_card.pack(fill="both", expand=True, pady=(14, 0))
         feed_header = tk.Frame(feed_card, bg=BG_CARD)
         feed_header.pack(fill="x", pady=(0, 10))
-
-        tk.Label(feed_header, text="LIVE FEED",
-                 font=self.font_status, bg=BG_CARD, fg=TEXT_SEC).pack(side="left")
-
+        feed_title = tk.Frame(feed_header, bg=BG_CARD)
+        feed_title.pack(side="left")
+        tk.Label(feed_title, text="Live Feed", font=self.font_header,
+                 bg=BG_CARD, fg=TEXT_PRI).pack(anchor="w")
+        tk.Label(feed_title, text="Raw EMG", font=self.font_status,
+                 bg=BG_CARD, fg=TEXT_DIM).pack(anchor="w", pady=(2, 0))
         self.feed_count = tk.Label(feed_header, text="~10 Hz",
                                    font=self.font_status, bg=BG_CARD, fg=TEXT_DIM)
         self.feed_count.pack(side="right")
 
         feed_scroll_frame = tk.Frame(feed_card, bg=BG_CARD)
         feed_scroll_frame.pack(fill="both", expand=True)
-
-        feed_scrollbar = tk.Scrollbar(feed_scroll_frame, bg=BG_CARD2,
-                                      troughcolor=BG_CARD, width=6)
+        feed_scrollbar = tk.Scrollbar(feed_scroll_frame, bg=BG_CARD2, troughcolor=BG_CARD, width=6)
         feed_scrollbar.pack(side="right", fill="y")
-
         self.feed_listbox = tk.Listbox(
             feed_scroll_frame,
             font=self.font_feed,
-            bg=BG_CARD, fg=TEXT_SEC,
-            selectbackground=ACCENT_DIM, selectforeground=BG,
-            relief="flat", bd=0,
+            bg=BG_CARD,
+            fg=TEXT_SEC,
+            selectbackground=ACCENT_DIM,
+            selectforeground=BG,
+            relief="flat",
+            bd=0,
             highlightthickness=0,
             yscrollcommand=feed_scrollbar.set,
-            width=32, height=20,
+            width=48,
+            height=8,
         )
         self.feed_listbox.pack(side="left", fill="both", expand=True)
         feed_scrollbar.config(command=self.feed_listbox.yview)
@@ -532,6 +709,134 @@ class GestureGUI:
 
     def _post_ui(self, callback, *args, **kwargs):
         self._ui_queue.put((callback, args, kwargs))
+
+    def _make_card(self, parent):
+        card = tk.Frame(parent, bg=BG_CARD, padx=16, pady=14, relief="flat", bd=0)
+        self._add_border(card)
+        return card
+
+    def _section_title(self, parent, title, subtitle=None):
+        bg = parent.cget("bg")
+        title_frame = tk.Frame(parent, bg=bg)
+        title_frame.pack(fill="x", anchor="w")
+        tk.Label(
+            title_frame,
+            text=title,
+            font=self.font_header,
+            bg=bg,
+            fg=TEXT_PRI,
+        ).pack(anchor="w")
+        if subtitle:
+            tk.Label(
+                title_frame,
+                text=subtitle,
+                font=self.font_status,
+                bg=bg,
+                fg=TEXT_DIM,
+            ).pack(anchor="w", pady=(2, 0))
+
+    def _make_button(self, parent, text, command, *, primary=False, danger=False):
+        bg = ACCENT_DIM if primary else BG_CARD2
+        fg = BG if primary else TEXT_PRI
+        active_bg = ACCENT if primary else BG_CARD
+        if danger:
+            bg = "#3a2028"
+            fg = "#ffffff"
+            active_bg = DANGER
+        return tk.Button(
+            parent,
+            text=text,
+            font=self.font_btn_sm,
+            bg=bg,
+            fg=fg,
+            activebackground=active_bg,
+            activeforeground=fg,
+            relief="flat",
+            bd=0,
+            padx=12,
+            pady=8,
+            cursor="hand2",
+            command=command,
+        )
+
+    def _build_labeled_entry(self, parent, label, variable, width):
+        group = tk.Frame(parent, bg=BG_CARD)
+        group.pack(side="left", padx=(0, 10))
+        tk.Label(group, text=label,
+                 font=self.font_status, bg=BG_CARD, fg=TEXT_DIM).pack(anchor="w")
+        tk.Entry(
+            group,
+            textvariable=variable,
+            width=width,
+            font=self.font_status,
+            bg=BG_CARD2,
+            fg=TEXT_PRI,
+            insertbackground=TEXT_PRI,
+            relief="flat",
+        ).pack(anchor="w", pady=(2, 0))
+
+    def _build_labeled_option(self, parent, label, variable, values, width):
+        group = tk.Frame(parent, bg=BG_CARD)
+        group.pack(side="left", padx=(0, 10))
+        tk.Label(group, text=label,
+                 font=self.font_status, bg=BG_CARD, fg=TEXT_DIM).pack(anchor="w")
+        menu = tk.OptionMenu(group, variable, *values)
+        menu.config(
+            width=width,
+            font=self.font_status,
+            bg=BG_CARD2,
+            fg=TEXT_PRI,
+            activebackground=BG_CARD2,
+            activeforeground=ACCENT,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+        )
+        menu["menu"].config(bg=BG_CARD2, fg=TEXT_PRI, activebackground=ACCENT_DIM)
+        menu.pack(anchor="w", pady=(2, 0))
+
+    def _update_scenario_from_selection(self):
+        scenario = get_scenario(self.condition_var.get(), self.category_var.get())
+        self.scenario_id_var.set(scenario["scenario_id"])
+        self.scenario_prompt_var.set(scenario["prompt"])
+
+    def _current_study_context(self):
+        scenario = get_scenario(self.condition_var.get(), self.category_var.get())
+        return {
+            "participant_id": self.participant_id_var.get().strip() or "P000",
+            "condition_order": self.condition_order_var.get(),
+            "condition": self.condition_var.get(),
+            "category": self.category_var.get(),
+            "scenario_id": scenario["scenario_id"],
+            "scenario_prompt": scenario["prompt"],
+            "notes": self.notes_var.get().strip(),
+        }
+
+    def _record_study_event(self, event_type, **fields):
+        context = (
+            {k: self.current_trial[k] for k in (
+                "participant_id",
+                "condition_order",
+                "condition",
+                "category",
+                "scenario_id",
+                "scenario_prompt",
+                "notes",
+            )}
+            if self.current_trial else self._current_study_context()
+        )
+        event = {
+            "event_type": event_type,
+            "timestamp": now_iso(),
+            **context,
+            **fields,
+        }
+        if self.current_trial:
+            event["trial_id"] = self.current_trial["trial_id"]
+            self.current_trial_events.append(event)
+        with state.lock:
+            state.log.append(event)
+        return event
 
     def _set_recording_state(
         self,
@@ -641,6 +946,7 @@ class GestureGUI:
             self.log_btn.config(bg=ACCENT_DIM)
             self._log_btn_enabled = True
             self._current_label = label
+            self._current_confidence = conf
         else:
             self.gesture_label.config(text="Warte auf Daten...", fg=TEXT_DIM)
             self.icon_label.config(text="—")
@@ -648,6 +954,7 @@ class GestureGUI:
             self.log_btn.config(bg="#333333")
             self._log_btn_enabled = False
             self._current_label = None
+            self._current_confidence = None
 
         self.root.after(UPDATE_INTERVAL_MS, self._update_ui)
 
@@ -696,32 +1003,39 @@ class GestureGUI:
 
     def _log_entry(self, label, source="EMG"):
         """Add a gesture to the log."""
-        if label == -1:
-            name = "Unknown"
-            icon = "❓"
-        else:
-            name = GESTURE_NAMES.get(label, f"class_{label}")
-            icon = GESTURE_ICONS.get(label, "")
+        name = GESTURE_NAMES.get(label, f"class_{label}")
+        icon = GESTURE_ICONS.get(label, "")
         now  = datetime.now()
         ts   = now.strftime("%H:%M:%S")
+        confidence = getattr(self, "_current_confidence", None) if source == "EMG" else None
+        metadata = gesture_recognition_metadata(
+            gesture_label=name,
+            source=source,
+            confidence=confidence,
+        )
 
         self.last_logged_gesture = name
-        self.last_gesture_label.config(text=f"Letzte Geste: {self.last_logged_gesture}")
+        self.last_logged_gesture_source = source
+        self.last_logged_gesture_confidence = confidence
+        self.last_recognition_outcome = metadata["recognition_outcome"]
+        self.last_wizard_intervention = metadata["wizard_intervention"]
+        self.last_gesture_label.config(
+            text=f"Letzte Geste: {self.last_logged_gesture} [{source}]"
+        )
 
-        with state.lock:
-            state.log.append((now, name))
+        self._record_study_event(
+            "gesture",
+            **metadata,
+        )
 
         entry = f"{ts}  {icon} {name}  [{source}]"
-        self.log_listbox.insert(tk.END, entry)
-        self.log_listbox.see(tk.END)
+        self._append_log_row(entry)
 
-        # Alternate row colors
-        idx = self.log_listbox.size() - 1
-        bg  = BG_CARD2 if idx % 2 == 0 else BG_CARD
-        self.log_listbox.itemconfig(idx, bg=bg)
-
-        count = self.log_listbox.size()
-        self.log_count.config(text=f"{count} Einträge")
+        if source == "manual":
+            self.action_status_label.config(
+                text=f"Wizard-Geste gesetzt: {name} [manual]",
+                fg="#f0c040",
+            )
 
         # Flash the log button briefly
         self.log_btn.config(bg=ACCENT)
@@ -730,6 +1044,17 @@ class GestureGUI:
     def _log_predicted(self):
         if self._log_btn_enabled and hasattr(self, '_current_label') and self._current_label is not None:
             self._log_entry(self._current_label, source="EMG")
+
+    def _append_log_row(self, entry):
+        self.log_listbox.insert(tk.END, entry)
+        self.log_listbox.see(tk.END)
+
+        idx = self.log_listbox.size() - 1
+        bg  = BG_CARD2 if idx % 2 == 0 else BG_CARD
+        self.log_listbox.itemconfig(idx, bg=bg)
+
+        count = self.log_listbox.size()
+        self.log_count.config(text=f"{count} Einträge")
 
     def _on_toggle_recording(self):
         if self.recording_state == "idle":
@@ -920,6 +1245,11 @@ class GestureGUI:
         self.transcribed_text = text or ""
         if text:
             logger.info(f"Transcription complete: {text}")
+            self._record_study_event(
+                "voice_transcription",
+                voice_transcript=text,
+                recognition_outcome="correct",
+            )
             self._set_recording_state(
                 "idle",
                 button_text="Sprachaufnahme starten",
@@ -933,6 +1263,11 @@ class GestureGUI:
             )
         else:
             logger.warning("Transcription returned empty text")
+            self._record_study_event(
+                "voice_transcription",
+                voice_transcript="",
+                recognition_outcome="no recognition",
+            )
             self._set_recording_state(
                 "idle",
                 button_text="Sprachaufnahme starten",
@@ -949,6 +1284,12 @@ class GestureGUI:
         if token != self._recording_token:
             return
 
+        self._record_study_event(
+            "voice_transcription",
+            voice_transcript="",
+            recognition_outcome="no recognition",
+            error=message,
+        )
         self._set_recording_state(
             "idle",
             button_text="Sprachaufnahme starten",
@@ -975,6 +1316,24 @@ class GestureGUI:
 
         transcript = (self.transcribed_text or "").strip()
         gesture = self.last_logged_gesture or "NONE"
+        gesture_source = self.last_logged_gesture_source or "none"
+        study_context = self._current_study_context()
+        intent_inputs = filter_intent_inputs_for_condition(
+            condition=study_context["condition"],
+            transcript=transcript,
+            gesture=gesture,
+            gesture_source=gesture_source,
+        )
+        operator_gesture = gesture if gesture_source == "manual" else None
+        intent_context = build_intent_context(
+            base_context=INTENT_CONTEXT,
+            condition=study_context["condition"],
+            category=study_context["category"],
+            scenario_id=study_context["scenario_id"],
+            scenario_prompt=study_context["scenario_prompt"],
+            gesture_source=intent_inputs["gesture_source"],
+            operator_gesture=operator_gesture,
+        )
         self.intent_in_progress = True
         self.api_button.config(
             text="Werte Intent aus…",
@@ -986,18 +1345,23 @@ class GestureGUI:
         )
         self.intent_label.config(text="Intent: (wird ausgewertet…)", fg=TEXT_SEC)
         self.action_status_label.config(
-            text=f"Lokale Ollama-Auswertung: Sprache + Geste ({gesture})",
+            text=(
+                f"Lokale Ollama-Auswertung: {study_context['scenario_id']} "
+                f"({intent_inputs['gesture'] or 'keine Geste'}, "
+                f"{intent_inputs['gesture_source']})"
+            ),
             fg=TEXT_PRI,
         )
 
         def interpret_in_thread():
             try:
                 result = self.intent_client.interpret(
-                    transcript=transcript,
-                    gesture=gesture,
-                    context=INTENT_CONTEXT,
+                    transcript=intent_inputs["transcript"],
+                    gesture=intent_inputs["gesture"],
+                    context=intent_context,
+                    gesture_source=intent_inputs["gesture_source"],
                 )
-                self._post_ui(self._on_intent_result, result)
+                self._post_ui(self._on_intent_result, result, intent_inputs)
             except OllamaIntentError as exc:
                 self._post_ui(self._on_intent_error, str(exc))
             except Exception as exc:
@@ -1006,8 +1370,27 @@ class GestureGUI:
 
         threading.Thread(target=interpret_in_thread, daemon=True).start()
 
-    def _on_intent_result(self, result):
+    def _on_intent_result(self, result, intent_inputs=None):
         self.intent_in_progress = False
+        intent_inputs = intent_inputs or {}
+        self.last_intent_result = result
+        self._record_study_event(
+            "intent",
+            voice_transcript=intent_inputs.get("transcript", ""),
+            gesture_label=intent_inputs.get("gesture") or None,
+            gesture_source=intent_inputs.get("gesture_source", "none"),
+            ignored_voice=bool(intent_inputs.get("ignored_voice")),
+            ignored_gesture=bool(intent_inputs.get("ignored_gesture")),
+            intent=result.get("intent", "unknown"),
+            action=result.get("action", "unknown"),
+            target=result.get("target", "unknown"),
+            value=result.get("value") or "",
+            used_modalities=result.get("used_modalities", "none"),
+            needs_clarification=bool(result.get("needs_clarification")),
+            clarification=result.get("clarification") or "",
+            llm_confidence_estimate=result.get("llm_confidence_estimate"),
+            error=result.get("error") or "",
+        )
         self.api_button.config(
             text="Intent auswerten",
             state=tk.NORMAL,
@@ -1027,6 +1410,7 @@ class GestureGUI:
 
     def _on_intent_error(self, message):
         self.intent_in_progress = False
+        self._record_study_event("intent_error", error=message)
         self.api_button.config(
             text="Intent auswerten",
             state=tk.NORMAL,
@@ -1051,14 +1435,209 @@ class GestureGUI:
             f"modalities={modalities}, llm_conf={confidence:.2f}"
         )
 
+    def _start_trial(self):
+        if self.current_trial:
+            self.trial_status_label.config(text="Trial läuft bereits.", fg="#f0c040")
+            return
+
+        self.trial_counter += 1
+        context = self._current_study_context()
+        trial_id = make_trial_id(context["participant_id"], self.trial_counter)
+        self.current_trial = {
+            **context,
+            "trial_id": trial_id,
+            "start_timestamp": now_iso(),
+            "_start_monotonic": time.monotonic(),
+        }
+        self.current_trial_events = []
+        self._reset_trial_inputs()
+        self._record_study_event("trial_start")
+        self.trial_status_label.config(
+            text=f"Aktiv: {trial_id} | {context['scenario_id']}",
+            fg=ACCENT,
+        )
+        self._append_log_row(f"{datetime.now().strftime('%H:%M:%S')}  START {trial_id}")
+
+    def _finish_trial(self, success):
+        if not self.current_trial:
+            self.trial_status_label.config(text="Kein aktiver Trial.", fg=TEXT_PRI)
+            return
+
+        end_timestamp = now_iso()
+        duration_ms = int((time.monotonic() - self.current_trial["_start_monotonic"]) * 1000)
+        events = list(self.current_trial_events)
+        intent = self.last_intent_result or {}
+        gesture_label = (
+            self.last_logged_gesture
+            if self.last_logged_gesture not in {"", "NONE", "Unknown"}
+            else None
+        )
+        wizard_intervention = any(e.get("wizard_intervention") for e in events)
+        transcript = self.transcribed_text.strip()
+        recognition_outcome = self._derive_trial_recognition_outcome(events, intent)
+        clarification_cycles = sum(
+            1 for e in events
+            if e.get("event_type") == "intent" and e.get("needs_clarification")
+        )
+        recognition_failures = sum(
+            1 for e in events
+            if e.get("recognition_outcome") == "no recognition"
+        )
+        wrong_recognitions = sum(
+            1 for e in events
+            if e.get("recognition_outcome") == "wrong"
+        )
+
+        trial_summary = {
+            "participant_id": self.current_trial["participant_id"],
+            "trial_id": self.current_trial["trial_id"],
+            "condition": self.current_trial["condition"],
+            "category": self.current_trial["category"],
+            "scenario_id": self.current_trial["scenario_id"],
+            "scenario_prompt": self.current_trial["scenario_prompt"],
+            "condition_order": self.current_trial["condition_order"],
+            "start_timestamp": self.current_trial["start_timestamp"],
+            "end_timestamp": end_timestamp,
+            "task_completion_time_ms": duration_ms,
+            "success": bool(success),
+            "interaction_steps": len([e for e in events if e.get("event_type") != "trial_start"]),
+            "repetitions": 0,
+            "corrections": 0,
+            "clarification_cycles": clarification_cycles,
+            "recognition_failures": recognition_failures,
+            "wrong_recognitions": wrong_recognitions,
+            "recognition_outcome": recognition_outcome,
+            "wizard_intervention": wizard_intervention,
+            "voice_transcript": transcript,
+            "gesture_label": gesture_label,
+            "gesture_source": self.last_logged_gesture_source if gesture_label else "none",
+            "gesture_confidence": self.last_logged_gesture_confidence,
+            "intent": intent.get("intent", "unknown"),
+            "action": intent.get("action", "unknown"),
+            "target": intent.get("target", "unknown"),
+            "value": intent.get("value") or "",
+            "used_modalities": intent.get("used_modalities", "none"),
+            "multimodal_usage_pattern": infer_multimodal_usage_pattern(
+                self.current_trial["condition"],
+                transcript,
+                gesture_label or "",
+            ),
+            "notes": self.notes_var.get().strip(),
+            "events": events,
+        }
+
+        with state.lock:
+            state.trial_log.append(trial_summary)
+            state.log.append({
+                "event_type": "trial_end",
+                "timestamp": end_timestamp,
+                "trial_id": trial_summary["trial_id"],
+                "success": trial_summary["success"],
+                "task_completion_time_ms": duration_ms,
+            })
+
+        status = "OK" if success else "ABORT"
+        self._append_log_row(
+            f"{datetime.now().strftime('%H:%M:%S')}  {status} {trial_summary['trial_id']}  {duration_ms} ms"
+        )
+        self.trial_status_label.config(
+            text=f"Trial gespeichert: {trial_summary['trial_id']}",
+            fg=ACCENT if success else "#f0c040",
+        )
+        self.current_trial = None
+        self.current_trial_events = []
+
+    def _derive_trial_recognition_outcome(self, events, intent):
+        outcomes = {e.get("recognition_outcome") for e in events if e.get("recognition_outcome")}
+        if any(e.get("wizard_intervention") for e in events):
+            return "Wizard intervention"
+        if "wrong" in outcomes:
+            return "wrong"
+        if "no recognition" in outcomes and len(outcomes) > 1:
+            return "mixed"
+        if "no recognition" in outcomes:
+            return "none"
+        if intent.get("intent") and intent.get("intent") != "unknown":
+            return "correct"
+        if "correct" in outcomes:
+            return "correct"
+        return "none"
+
+    def _reset_trial_inputs(self):
+        self.transcribed_text = ""
+        self.last_logged_gesture = "NONE"
+        self.last_logged_gesture_source = "none"
+        self.last_logged_gesture_confidence = None
+        self.last_recognition_outcome = "none"
+        self.last_wizard_intervention = False
+        self.last_intent_result = None
+        self.last_gesture_label.config(text="Letzte Geste: NONE")
+        self.transcription_label.config(text="Transkript: —", fg=TEXT_DIM)
+        self.intent_label.config(text="Intent: —", fg=TEXT_DIM)
+        self.action_status_label.config(text="Trial bereit.", fg=TEXT_SEC)
+
+    def _export_trial_log(self):
+        with state.lock:
+            trials = list(state.trial_log)
+
+        if not trials:
+            self.action_status_label.config(text="Noch keine abgeschlossenen Trials zum Exportieren.", fg=TEXT_PRI)
+            return
+
+        path = filedialog.asksaveasfilename(
+            title="Trial-Log exportieren",
+            defaultextension=".jsonl",
+            filetypes=[("JSON Lines", "*.jsonl"), ("All files", "*.*")],
+            initialfile=f"study_trials_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl",
+        )
+        if not path:
+            return
+
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                for trial in trials:
+                    handle.write(json.dumps(trial, ensure_ascii=False) + "\n")
+        except OSError as exc:
+            self.action_status_label.config(text=f"Export fehlgeschlagen: {exc}", fg=DANGER)
+            return
+
+        self.action_status_label.config(text=f"Trial-Log exportiert: {path}", fg=ACCENT)
+
     def _log_manual(self, gesture_id):
         self._log_entry(gesture_id, source="manual")
+
+    def _log_no_recognition(self):
+        self.last_logged_gesture = "NONE"
+        self.last_logged_gesture_source = "none"
+        self.last_logged_gesture_confidence = None
+        self.last_recognition_outcome = "no recognition"
+        self.last_wizard_intervention = True
+        self.last_gesture_label.config(text="Letzte Geste: NONE [no recognition]")
+        self._record_study_event(
+            "gesture",
+            **gesture_recognition_metadata(
+                gesture_label=None,
+                source="manual",
+                confidence=None,
+            ),
+        )
+        self._append_log_row(f"{datetime.now().strftime('%H:%M:%S')}  ? No recognition  [manual]")
+        self.action_status_label.config(
+            text="No recognition als Wizard-/Operator-Ereignis geloggt.",
+            fg="#f0c040",
+        )
 
     def _clear_log(self):
         self.log_listbox.delete(0, tk.END)
         with state.lock:
             state.log.clear()
+        if not self.current_trial:
+            self.current_trial_events.clear()
         self.log_count.config(text="0 Einträge")
+        self.action_status_label.config(
+            text="Log-Anzeige geleert. Abgeschlossene Trials bleiben exportierbar.",
+            fg=TEXT_SEC,
+        )
 
     def _on_close(self):
         try:
@@ -1081,8 +1660,8 @@ def main():
 
     # Start GUI
     root = tk.Tk()
-    root.geometry("1150x600")
-    root.minsize(1150, 600)
+    root.geometry("1320x780")
+    root.minsize(1180, 720)
     root.resizable(True, True)
     app  = GestureGUI(root)
     root.mainloop()

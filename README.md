@@ -19,7 +19,7 @@ The pilot study design remains separate in [STUDY_DESIGN.md](STUDY_DESIGN.md).
 - Trains a LibEMG classifier for live gesture prediction.
 - Records microphone input and transcribes German speech with local Whisper.
 - Combines the latest transcript and confirmed gesture through a local Ollama intent parser.
-- Provides manual gesture buttons for fallback/Wizard-of-Oz support during pilot sessions.
+- Provides operator-only manual gesture buttons for fallback/Wizard-of-Oz support during pilot sessions.
 
 ## Current Gesture Vocabulary
 
@@ -164,7 +164,7 @@ ollama pull qwen3.5:2b
 export OLLAMA_MODEL=qwen3.5:2b
 ```
 
-`Middleware/intent_manager.py` is intentionally constrained to structured intent parsing, not free-form chatbot behavior. It sends the latest Whisper transcript, the last confirmed EMG gesture, and a short cockpit context to Ollama. The normalized result contains:
+`Middleware/intent_manager.py` is intentionally constrained to structured intent parsing, not free-form chatbot behavior. It sends the latest Whisper transcript, the last confirmed EMG gesture, whether that gesture was manual or EMG-predicted, and the active study scenario context to Ollama. Clear voice commands are treated as the primary semantic signal; a conflicting gesture should not force `unknown`.
 
 | Field | Meaning |
 | --- | --- |
@@ -215,7 +215,7 @@ python gesture_gui.py
 
 The first GUI start can take longer because Whisper may download and load the local speech model. macOS may ask for microphone permission; allow it for the terminal app you are using.
 
-Use `Intent auswerten` in the GUI after recording speech and/or confirming a gesture. This calls the local Ollama model and shows a structured in-car intent.
+Use `Intent auswerten` in the GUI after recording speech and/or confirming a gesture. This calls the local Ollama model and shows a structured in-car intent. In study mode, the active condition determines which inputs are interpreted: `Voice only` ignores gestures as participant input, `Gesture only` ignores speech as participant input, and `CAN use both` allows both.
 
 ## Maintained Commands
 
@@ -260,14 +260,28 @@ jupyter lab notebooks/04_train.ipynb
 The GUI launched by `python gesture_gui.py` combines:
 
 - live EMG prediction from the MindRove UDP stream
-- manual gesture confirmation buttons for fallback/Wizard support
+- operator-only manual gesture buttons for fallback/Wizard support
 - microphone recording through PyAudio
 - local German speech transcription through Whisper
 - local Ollama intent parsing for voice + gesture
+- a pilot study operator panel for condition, scenario, trial timing, and JSONL export
 
 The GUI expects a trained model under `models/clf` and a running streamer on UDP port `12345`. Battery updates are read from UDP port `12346` when available.
 
 The root-level `gesture_gui.py` is the maintained user-facing launcher. Treat `scripts/gesture_gui.py` as an internal implementation detail.
+
+### Pilot Operator Workflow
+
+The manual gesture buttons are for the study team, not for participants. Participants should interact through voice and/or EMG depending on the active condition. Operators use the manual buttons only to annotate or recover a trial when Wizard-of-Oz support is needed.
+
+1. Select `participant_id`, `condition_order`, `condition`, and `category`.
+2. Click `Trial starten`; this resets the current transcript, gesture, and intent result.
+3. Run the task. Confirm live EMG with `Einloggen`, record speech, or use the `OPERATOR / WIZARD` controls only as fallback.
+4. Click `Intent auswerten` to parse the condition-filtered input with the current scenario context.
+5. End the trial with `Erfolgreich beenden` or `Abbrechen`.
+6. Export completed trials with `EXPORT JSONL`.
+
+`No recognition` is logged as a recognition outcome, not as a gesture label. Manual gesture clicks are logged with `gesture_source=manual` and `wizard_intervention=true`; EMG-confirmed gestures are logged with `gesture_source=EMG` and `wizard_intervention=false`.
 
 ## Tests And Checks
 

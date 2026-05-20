@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from typing import Any
@@ -79,6 +80,48 @@ GESTURE_HINTS = {
     "NONE": "no gesture available",
 }
 
+INTENT_ALIASES = {
+    "increase_volume": "adjust_volume",
+    "decrease_volume": "adjust_volume",
+    "set_volume": "adjust_volume",
+    "volume_up": "adjust_volume",
+    "volume_down": "adjust_volume",
+    "change_volume": "adjust_volume",
+    "change_ambient_light": "set_ambient_light",
+    "increase_ambient_light": "adjust_ambient_light",
+    "decrease_ambient_light": "adjust_ambient_light",
+    "change_seat_heating": "adjust_seat_heating",
+    "increase_seat_heating": "adjust_seat_heating",
+    "decrease_seat_heating": "adjust_seat_heating",
+    "next_song": "skip_song",
+    "skip_media": "skip_song",
+    "play_media": "resume_media",
+}
+
+ACTION_ALIASES = {
+    "up": "increase",
+    "down": "decrease",
+    "higher": "increase",
+    "lower": "decrease",
+    "louder": "increase",
+    "quieter": "decrease",
+    "next": "skip",
+    "approve": "accept",
+    "decline": "reject",
+}
+
+TARGET_ALIASES = {
+    "audio": "volume",
+    "sound": "volume",
+    "brightness": "ambient_light",
+    "light": "ambient_light",
+    "lights": "ambient_light",
+    "heating": "seat_heating",
+    "seat": "seat_heating",
+    "song": "media",
+    "music": "media",
+}
+
 
 class OllamaIntentError(RuntimeError):
     """Raised when Ollama cannot return a usable intent result."""
@@ -114,10 +157,12 @@ class OllamaIntentClient:
         transcript: str,
         gesture: str,
         context: str | None = None,
+        gesture_source: str | None = None,
     ) -> dict[str, Any]:
         transcript = (transcript or "").strip()
         gesture = (gesture or "").strip()
         context = (context or "").strip()
+        gesture_source = (gesture_source or "").strip()
 
         if not _has_actionable_input(transcript, gesture):
             return _unknown_result(
@@ -148,6 +193,7 @@ class OllamaIntentClient:
                         {
                             "voice_transcript": transcript,
                             "gesture": gesture,
+                            "gesture_source": gesture_source,
                             "gesture_hint": GESTURE_HINTS.get(gesture, ""),
                             "context": context,
                         },
@@ -213,9 +259,21 @@ def normalize_intent_result(
     inferred_modality = _infer_modalities(transcript, gesture)
 
     normalized = {
-        "intent": _allowed(result.get("intent"), ALLOWED_INTENTS),
-        "action": _allowed(result.get("action"), ALLOWED_ACTIONS),
-        "target": _allowed(result.get("target"), ALLOWED_TARGETS),
+        "intent": _allowed(
+            result.get("intent"),
+            ALLOWED_INTENTS,
+            aliases=INTENT_ALIASES,
+        ),
+        "action": _allowed(
+            result.get("action"),
+            ALLOWED_ACTIONS,
+            aliases=ACTION_ALIASES,
+        ),
+        "target": _allowed(
+            result.get("target"),
+            ALLOWED_TARGETS,
+            aliases=TARGET_ALIASES,
+        ),
         "value": _string_or_empty(result.get("value")),
         "needs_clarification": bool(result.get("needs_clarification", False)),
         "clarification": _string_or_empty(result.get("clarification")),
@@ -226,6 +284,12 @@ def normalize_intent_result(
         ),
         "error": _string_or_empty(result.get("error")),
     }
+
+    fallback = _rule_based_intent(transcript, gesture)
+    if normalized["intent"] == "unknown" and fallback["intent"] != "unknown":
+        fallback["used_modalities"] = normalized["used_modalities"]
+        fallback["error"] = normalized["error"]
+        return fallback
 
     if normalized["intent"] == "unknown":
         normalized["action"] = "unknown"
@@ -243,6 +307,11 @@ def _system_prompt() -> str:
         "Return only valid JSON. Do not answer as a conversational assistant. "
         "Infer a structured vehicle interaction intent from German or English voice text, "
         "an EMG micro-gesture label, and optional scenario context. "
+        "Use voice as the primary semantic signal when the voice command is clear. "
+        "Use the gesture as a secondary signal for confirmation, selection, rejection, "
+        "or adjustment. A conflicting gesture must not force unknown when the voice "
+        "command clearly states an action and target. "
+        "A manually confirmed gesture is intentional input and must be considered. "
         "Allowed intents: "
         f"{sorted(ALLOWED_INTENTS)}. "
         "Allowed actions: "
@@ -313,10 +382,134 @@ def _normalize_modality(value: Any) -> str:
     return "unknown"
 
 
-def _allowed(value: Any, allowed: set[str]) -> str:
+def _rule_based_intent(transcript: str, gesture: str) -> dict[str, Any]:
+    text = _normalize_text(transcript)
+    if not text:
+        return _unknown_result(used_modalities=_infer_modalities(transcript, gesture))
+
+    if _contains_any(text, ("lautstaerke", "lautstarke", "volume", "sound", "audio")):
+        if _contains_any(text, ("hoeher", "hoher", "lauter", "erhoehen", "erhoeh", "increase", "up", "louder")):
+            return _known_result(
+                intent="adjust_volume",
+                action="increase",
+                target="volume",
+                value="louder",
+                used_modalities=_infer_modalities(transcript, gesture),
+            )
+        if _contains_any(text, ("leiser", "niedriger", "senken", "runter", "decrease", "down", "quieter")):
+            return _known_result(
+                intent="adjust_volume",
+                action="decrease",
+                target="volume",
+                value="quieter",
+                used_modalities=_infer_modalities(transcript, gesture),
+            )
+        return _known_result(
+            intent="adjust_volume",
+            action="set",
+            target="volume",
+            used_modalities=_infer_modalities(transcript, gesture),
+        )
+
+    if _contains_any(text, ("licht", "ambient", "beleuchtung", "helligkeit", "brightness")):
+        action = "set"
+        value = ""
+        if _contains_any(text, ("heller", "brighter", "hoeher", "increase")):
+            action = "increase"
+            value = "brighter"
+        elif _contains_any(text, ("dunkler", "dim", "decrease", "senken")):
+            action = "decrease"
+            value = "dimmer"
+        return _known_result(
+            intent="adjust_ambient_light" if action in {"increase", "decrease"} else "set_ambient_light",
+            action=action,
+            target="ambient_light",
+            value=value,
+            used_modalities=_infer_modalities(transcript, gesture),
+        )
+
+    if _contains_any(text, ("sitzheizung", "seat heating", "heizung")):
+        action = "increase" if _contains_any(text, ("waermer", "warmer", "hoeher", "increase", "mehr")) else "set"
+        return _known_result(
+            intent="adjust_seat_heating",
+            action=action,
+            target="seat_heating",
+            value="warmer" if action == "increase" else "",
+            used_modalities=_infer_modalities(transcript, gesture),
+        )
+
+    if _contains_any(text, ("anruf", "call")):
+        if _contains_any(text, ("annehmen", "accept", "rangehen")):
+            return _known_result("accept_call", "accept", "call", used_modalities=_infer_modalities(transcript, gesture))
+        if _contains_any(text, ("ablehnen", "reject", "wegdruecken", "decline")):
+            return _known_result("reject_call", "reject", "call", used_modalities=_infer_modalities(transcript, gesture))
+
+    if _contains_any(text, ("route", "navigation", "navi")):
+        if _contains_any(text, ("annehmen", "nehmen", "accept", "bestaetigen")):
+            return _known_result("accept_route", "accept", "route", used_modalities=_infer_modalities(transcript, gesture))
+        if _contains_any(text, ("ablehnen", "reject", "nicht")):
+            return _known_result("reject_route", "reject", "route", used_modalities=_infer_modalities(transcript, gesture))
+        if _contains_any(text, ("auswaehlen", "select", "waehlen")):
+            return _known_result("select_route", "select", "route", used_modalities=_infer_modalities(transcript, gesture))
+
+    if _contains_any(text, ("song", "lied", "musik", "media")):
+        if _contains_any(text, ("weiter", "naechste", "next", "skip", "ueberspring")):
+            return _known_result("skip_song", "skip", "media", value="next", used_modalities=_infer_modalities(transcript, gesture))
+        if _contains_any(text, ("fortsetzen", "resume", "play", "abspielen")):
+            return _known_result("resume_media", "resume", "media", used_modalities=_infer_modalities(transcript, gesture))
+
+    if _contains_any(text, ("nachricht", "message")):
+        if _contains_any(text, ("oeffnen", "open", "anzeigen")):
+            return _known_result("open_message", "open", "message", used_modalities=_infer_modalities(transcript, gesture))
+        if _contains_any(text, ("schliessen", "close", "weg")):
+            return _known_result("close_message", "close", "message", used_modalities=_infer_modalities(transcript, gesture))
+
+    return _unknown_result(used_modalities=_infer_modalities(transcript, gesture))
+
+
+def _known_result(
+    intent: str,
+    action: str,
+    target: str,
+    value: str = "",
+    used_modalities: str = "none",
+) -> dict[str, Any]:
+    return {
+        "intent": intent,
+        "action": action,
+        "target": target,
+        "value": value,
+        "needs_clarification": False,
+        "clarification": "",
+        "used_modalities": used_modalities,
+        "llm_confidence_estimate": 0.65,
+        "error": "",
+    }
+
+
+def _normalize_text(value: str) -> str:
+    replacements = {
+        "ä": "ae",
+        "ö": "oe",
+        "ü": "ue",
+        "ß": "ss",
+    }
+    text = value.lower()
+    for source, target in replacements.items():
+        text = text.replace(source, target)
+    return re.sub(r"\s+", " ", text)
+
+
+def _contains_any(text: str, needles: tuple[str, ...]) -> bool:
+    return any(needle in text for needle in needles)
+
+
+def _allowed(value: Any, allowed: set[str], aliases: dict[str, str] | None = None) -> str:
     if not isinstance(value, str):
         return "unknown"
     normalized = value.strip().lower()
+    if aliases and normalized in aliases:
+        normalized = aliases[normalized]
     return normalized if normalized in allowed else "unknown"
 
 
