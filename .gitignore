@@ -10,6 +10,10 @@ __pycache__/
 .cache/
 .ipynb_checkpoints/
 
+# Node / frontend
+node_modules/
+dist/
+
 # Collected and generated data
 data/raw/*
 !data/raw/.gitkeep

@@ -24,6 +24,7 @@ DEFAULT_KEEP_ALIVE = "10m"
 ALLOWED_INTENTS = {
     "accept_call",
     "reject_call",
+    "end_call",
     "accept_route",
     "reject_route",
     "select_route",
@@ -81,6 +82,9 @@ GESTURE_HINTS = {
 }
 
 INTENT_ALIASES = {
+    "hang_up_call": "end_call",
+    "close_call": "end_call",
+    "stop_call": "end_call",
     "increase_volume": "adjust_volume",
     "decrease_volume": "adjust_volume",
     "set_volume": "adjust_volume",
@@ -286,6 +290,19 @@ def normalize_intent_result(
     }
 
     fallback = _rule_based_intent(transcript, gesture)
+    if _should_prefer_rule_based_intent(normalized, fallback):
+        fallback["used_modalities"] = normalized["used_modalities"]
+        fallback["error"] = normalized["error"]
+        return fallback
+
+    if (
+        fallback["intent"] == "end_call"
+        and normalized["intent"] in {"reject_call", "unknown"}
+    ):
+        fallback["used_modalities"] = normalized["used_modalities"]
+        fallback["error"] = normalized["error"]
+        return fallback
+
     if normalized["intent"] == "unknown" and fallback["intent"] != "unknown":
         fallback["used_modalities"] = normalized["used_modalities"]
         fallback["error"] = normalized["error"]
@@ -299,6 +316,21 @@ def normalize_intent_result(
             normalized["clarification"] = "Ich bin mir nicht sicher. Bitte wiederhole die Eingabe."
 
     return normalized
+
+
+def _should_prefer_rule_based_intent(
+    normalized: dict[str, Any],
+    fallback: dict[str, Any],
+) -> bool:
+    if fallback.get("intent") == "unknown":
+        return False
+    if normalized.get("intent") == "unknown":
+        return True
+    if normalized.get("target") != fallback.get("target"):
+        return True
+    if normalized.get("action") != fallback.get("action"):
+        return True
+    return False
 
 
 def _system_prompt() -> str:
@@ -318,6 +350,9 @@ def _system_prompt() -> str:
         f"{sorted(ALLOWED_ACTIONS)}. "
         "Allowed targets: "
         f"{sorted(ALLOWED_TARGETS)}. "
+        "For an active call, commands like 'Anruf beenden', 'auflegen', "
+        "or 'hang up' must be end_call with action close and target call, "
+        "not reject_call. Use reject_call only for declining an incoming call. "
         "Output exactly these keys: intent, action, target, value, needs_clarification, "
         "clarification, used_modalities, llm_confidence_estimate. "
         "If the command is ambiguous, set intent/action/target to unknown, "
@@ -441,6 +476,8 @@ def _rule_based_intent(transcript: str, gesture: str) -> dict[str, Any]:
     if _contains_any(text, ("anruf", "call")):
         if _contains_any(text, ("annehmen", "accept", "rangehen")):
             return _known_result("accept_call", "accept", "call", used_modalities=_infer_modalities(transcript, gesture))
+        if _contains_any(text, ("beenden", "beende", "ende", "auflegen", "aufgelegt", "lege auf", "leg auf", "stopp", "stop", "hang up", "end call")):
+            return _known_result("end_call", "close", "call", used_modalities=_infer_modalities(transcript, gesture))
         if _contains_any(text, ("ablehnen", "reject", "wegdruecken", "decline")):
             return _known_result("reject_call", "reject", "call", used_modalities=_infer_modalities(transcript, gesture))
 

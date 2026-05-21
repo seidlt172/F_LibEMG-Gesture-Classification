@@ -117,6 +117,56 @@ class IntentManagerTests(unittest.TestCase):
         self.assertEqual(result["used_modalities"], "voice+gesture")
         self.assertFalse(result["needs_clarification"])
 
+    def test_call_end_is_not_treated_as_incoming_call_rejection(self):
+        client = OllamaIntentClient()
+        response = {
+            "message": {
+                "content": json.dumps({
+                    "intent": "reject_call",
+                    "action": "reject",
+                    "target": "call",
+                    "value": "",
+                    "needs_clarification": False,
+                    "clarification": "",
+                    "used_modalities": "voice",
+                    "llm_confidence_estimate": 0.7,
+                })
+            }
+        }
+
+        with patch.object(client, "_post_chat", return_value=response):
+            result = client.interpret("Anruf beenden", "", None)
+
+        self.assertEqual(result["intent"], "end_call")
+        self.assertEqual(result["action"], "close")
+        self.assertEqual(result["target"], "call")
+        self.assertFalse(result["needs_clarification"])
+
+    def test_clear_call_accept_overrides_wrong_route_intent(self):
+        client = OllamaIntentClient()
+        response = {
+            "message": {
+                "content": json.dumps({
+                    "intent": "accept_route",
+                    "action": "accept",
+                    "target": "navigation",
+                    "value": "",
+                    "needs_clarification": False,
+                    "clarification": "",
+                    "used_modalities": "voice",
+                    "llm_confidence_estimate": 0.8,
+                })
+            }
+        }
+
+        with patch.object(client, "_post_chat", return_value=response):
+            result = client.interpret("Anruf annehmen", "", None)
+
+        self.assertEqual(result["intent"], "accept_call")
+        self.assertEqual(result["action"], "accept")
+        self.assertEqual(result["target"], "call")
+        self.assertFalse(result["needs_clarification"])
+
     def test_invalid_json_returns_unknown_with_error(self):
         client = OllamaIntentClient()
         response = {"message": {"content": "not json"}}

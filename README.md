@@ -55,8 +55,9 @@ When changing the gesture vocabulary:
 │   ├── diagnose_data.py       # data/model troubleshooting
 │   ├── diagnose_audio.py      # microphone/PyAudio troubleshooting
 │   ├── live_demo.py           # terminal EMG prediction demo
-│   └── gesture_gui.py         # multimodal GUI implementation
-├── car_widgets/               # participant-facing in-car widget interface
+│   ├── study_flow.py          # central study scenario and step catalog
+│   └── gesture_gui.py         # multimodal operator GUI implementation
+├── car_widgets_react/         # participant-facing React cockpit interface
 ├── Middleware/
 │   ├── audio_recorder.py      # microphone recording
 │   ├── input_events.py        # normalized voice/gesture event schema
@@ -220,8 +221,12 @@ middleware decisions:
 }
 ```
 
-The old `accepted`, `rejected`, and `unclear` labels are still accepted as
-compatibility aliases for `execute`, `cancel`, and `clarify`.
+`decision` describes what the widget should do with the current scenario step,
+not the literal semantic action. For example, ending an active call is an
+executed step (`decision=execute`) even if a recognizer describes the utterance
+as rejecting or stopping a call. The semantic meaning remains in `intent`,
+`action`, and `target`. The old `accepted`, `rejected`, and `unclear` labels are
+still accepted as compatibility aliases for `execute`, `cancel`, and `clarify`.
 
 ### Existing EMG Flow
 
@@ -326,7 +331,7 @@ The GUI launched by `python gesture_gui.py` combines:
 - microphone recording through PyAudio
 - local German speech transcription through Whisper
 - local Ollama intent parsing for voice + gesture
-- a pilot study operator panel for condition, scenario, trial timing, and JSONL export
+- a pilot study operator panel for scenario selection, trial timing, and JSONL export
 
 The GUI expects a trained model under `models/clf` and a running streamer on UDP port `12345`. Battery updates are read from UDP port `12346` when available.
 
@@ -336,36 +341,38 @@ The root-level `gesture_gui.py` is the maintained user-facing launcher. Treat `s
 
 The manual gesture buttons are for the study team, not for participants. Participants should interact through voice and/or EMG depending on the active condition. Operators use the manual buttons only to annotate or recover a trial when Wizard-of-Oz support is needed.
 
-1. Select `participant_id`, `condition_order`, `condition`, and `category`.
-2. Click `Trial starten`; this resets the current transcript, gesture, and intent result.
+1. Select `participant_id`, `condition_order`, and the direct study scenario (`1.1` to `4.3`).
+2. Click `Trial starten`; this resets the current transcript, gesture, and intent result and sends the first active step to the participant-facing widget.
 3. Run the task. Confirm live EMG with `Einloggen`, record speech, or use the `OPERATOR / WIZARD` controls only as fallback.
-4. Click `Intent auswerten` to parse the condition-filtered input with the current scenario context.
-5. End the trial with `Erfolgreich beenden` or `Abbrechen`.
-6. Export completed trials with `EXPORT JSONL`.
+4. Click `Intent auswerten` to parse the condition-filtered input with the current scenario and step context.
+5. Each successful intent advances exactly one step inside the active scenario. A clarification keeps the same step active.
+6. After the final step, the widget shows `trial_completed`; end the trial with `Erfolgreich beenden` or `Abbrechen`.
+7. Export completed trials with `EXPORT JSONL`.
 
 `No recognition` is logged as a recognition outcome, not as a gesture label. Manual gesture clicks are logged with `gesture_source=manual` and `wizard_intervention=true`; EMG-confirmed gestures are logged with `gesture_source=emg` and `wizard_intervention=false`.
 
-## Participant-Facing Car Widgets
+## Participant-Facing React Widgets
 
-The provisional in-car interface is separate from the operator GUI:
+The React + TypeScript cockpit frontend lives in `car_widgets_react/`.
+It shows all six cockpit domains at once and consumes explicit middleware
+events through a small local event server. React is a display client only:
+scenario and step state come from the Python operator GUI.
 
 ```bash
-python -m car_widgets.app
+python -m Middleware.widget_event_server
+cd car_widgets_react
+npm install
+npm run dev
 ```
 
-It shows a simple cockpit UI with navigation, audio, messages, calls, ambient light, and climate widgets. The active study condition is visible to participants, including whether they should use voice, EMG gestures, or either modality. The demo panel loads the 12 study flows and can simulate normalized middleware decisions: `execute`, `cancel`, and `clarify`.
+Then start the operator GUI in another terminal:
 
-When running, the widget app also listens for middleware decisions at:
-
-```text
-http://127.0.0.1:8765/widget-event
+```bash
+python gesture_gui.py
 ```
 
-The operator GUI sends a widget decision after every successful intent
-evaluation. If the widget app is not open, the operator GUI logs the failed
-bridge attempt and remains usable.
-
-The visual design is intentionally centralized in `car_widgets/theme.py` and componentized in `car_widgets/components.py`, so the provisional UI can later be replaced with the Figma design without changing the feedback/state logic.
+The old Python widget client has been removed; React is the only
+participant-facing widget frontend.
 
 ## Tests And Checks
 

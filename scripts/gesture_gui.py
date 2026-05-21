@@ -50,18 +50,22 @@ from Middleware.intent_manager import OllamaIntentClient
 from Middleware.intent_manager import OllamaIntentError
 from Middleware.speech_transcriber import SpeechTranscriber
 from Middleware.widget_bridge import WidgetBridgeClient
+from Middleware.widget_bridge import build_scenario_start_payload
+from Middleware.widget_bridge import build_trial_completed_payload
 from Middleware.widget_bridge import build_widget_payload
+from Middleware.widget_bridge import decision_for_step
+from Middleware.widget_bridge import decision_from_intent_result
 from libemg.feature_extractor import FeatureExtractor
 from scripts.gesture_config import GESTURE_DISPLAY_NAMES as GESTURE_NAMES
 from scripts.gesture_config import MANUAL_GESTURE_IDS
-from scripts.study_config import CATEGORIES
 from scripts.study_config import CONDITION_ORDERS
-from scripts.study_config import CONDITIONS
 from scripts.study_config import build_intent_context
-from scripts.study_config import get_scenario
 from scripts.study_config import infer_multimodal_usage_pattern
 from scripts.study_config import make_trial_id
 from scripts.study_config import now_iso
+from scripts.study_flow import scenario_from_label
+from scripts.study_flow import scenario_labels
+from scripts.study_flow import scenario_prompt
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 
@@ -267,13 +271,13 @@ class GestureGUI:
         self.current_trial_events = []
         self.participant_id_var = tk.StringVar(value="P001")
         self.condition_order_var = tk.StringVar(value=CONDITION_ORDERS[0])
-        self.condition_var = tk.StringVar(value=CONDITIONS[2])
-        self.category_var = tk.StringVar(value=CATEGORIES[0])
+        self.scenario_choice_var = tk.StringVar(value=scenario_labels()[0])
+        self.condition_display_var = tk.StringVar(value="")
+        self.category_display_var = tk.StringVar(value="")
         self.scenario_id_var = tk.StringVar(value="")
         self.scenario_prompt_var = tk.StringVar(value="")
         self.notes_var = tk.StringVar(value="")
-        self.condition_var.trace_add("write", lambda *_: self._update_scenario_from_selection())
-        self.category_var.trace_add("write", lambda *_: self._update_scenario_from_selection())
+        self.scenario_choice_var.trace_add("write", lambda *_: self._update_scenario_from_selection())
         # Use absolute path for audio file
         audio_file_path = os.path.join(ROOT_DIR, "temp_voice.wav")
         self.recorder = AudioRecorder(output_filename=audio_file_path)
@@ -374,8 +378,13 @@ class GestureGUI:
         setup_row.pack(fill="x")
         self._build_labeled_entry(setup_row, "Participant", self.participant_id_var, width=9)
         self._build_labeled_option(setup_row, "Order", self.condition_order_var, CONDITION_ORDERS, width=5)
-        self._build_labeled_option(setup_row, "Condition", self.condition_var, CONDITIONS, width=13)
-        self._build_labeled_option(setup_row, "Category", self.category_var, CATEGORIES, width=13)
+        self.scenario_menu = self._build_labeled_option(
+            setup_row,
+            "Scenario",
+            self.scenario_choice_var,
+            scenario_labels(),
+            width=48,
+        )
         self._build_labeled_entry(setup_row, "Notes", self.notes_var, width=24)
 
         scenario_row = tk.Frame(study_card, bg=BG_CARD)
@@ -389,6 +398,24 @@ class GestureGUI:
             padx=10,
             pady=6,
         ).pack(side="left")
+        tk.Label(
+            scenario_row,
+            textvariable=self.condition_display_var,
+            font=self.font_status,
+            bg=BG_CARD2,
+            fg=TEXT_PRI,
+            padx=10,
+            pady=6,
+        ).pack(side="left", padx=(8, 0))
+        tk.Label(
+            scenario_row,
+            textvariable=self.category_display_var,
+            font=self.font_status,
+            bg=BG_CARD2,
+            fg=TEXT_PRI,
+            padx=10,
+            pady=6,
+        ).pack(side="left", padx=(8, 0))
         self.scenario_prompt_label = tk.Label(
             scenario_row,
             textvariable=self.scenario_prompt_var,
@@ -801,24 +828,68 @@ class GestureGUI:
         )
         menu["menu"].config(bg=BG_CARD2, fg=TEXT_PRI, activebackground=ACCENT_DIM)
         menu.pack(anchor="w", pady=(2, 0))
+        return menu
 
     def _update_scenario_from_selection(self):
-        scenario = get_scenario(self.condition_var.get(), self.category_var.get())
-        self.scenario_id_var.set(scenario["scenario_id"])
-        self.scenario_prompt_var.set(scenario["prompt"])
+        scenario = scenario_from_label(self.scenario_choice_var.get())
+        self.scenario_id_var.set(scenario.scenario_id)
+        self.condition_display_var.set(scenario.condition)
+        self.category_display_var.set(scenario.category_name)
+        self.scenario_prompt_var.set(scenario_prompt(scenario))
 
     def _current_study_context(self):
-        scenario = get_scenario(self.condition_var.get(), self.category_var.get())
+        scenario = scenario_from_label(self.scenario_choice_var.get())
         return {
             "participant_id": self.participant_id_var.get().strip() or "P000",
             "condition_order": self.condition_order_var.get(),
-            "condition": self.condition_var.get(),
-            "category": self.category_var.get(),
-            "scenario_id": scenario["scenario_id"],
-            "study_ref": scenario.get("study_ref", scenario["scenario_id"]),
-            "scenario_prompt": scenario["prompt"],
+            "condition": scenario.condition,
+            "category": scenario.category_name,
+            "scenario_id": scenario.scenario_id,
+            "study_ref": scenario.study_ref,
+            "scenario_prompt": scenario_prompt(scenario),
             "notes": self.notes_var.get().strip(),
         }
+
+    def _trial_study_context(self):
+        if self.current_trial:
+            return {
+                key: self.current_trial[key]
+                for key in (
+                    "participant_id",
+                    "condition_order",
+                    "condition",
+                    "category",
+                    "scenario_id",
+                    "study_ref",
+                    "scenario_prompt",
+                    "notes",
+                    "trial_id",
+                )
+                if key in self.current_trial
+            }
+        return self._current_study_context()
+
+    def _current_widget_scenario(self):
+        context = self._trial_study_context()
+        return scenario_from_label(context.get("study_ref") or context.get("scenario_id", ""))
+
+    def _current_widget_step(self):
+        scenario = self._current_widget_scenario()
+        step_index = int((self.current_trial or {}).get("current_step_index", 0))
+        step_index = max(0, min(step_index, len(scenario.flow_steps) - 1))
+        return scenario.flow_steps[step_index], step_index, len(scenario.flow_steps)
+
+    def _set_trial_step_status(self):
+        if not self.current_trial:
+            return
+        step, step_index, step_count = self._current_widget_step()
+        self.trial_status_label.config(
+            text=(
+                f"Aktiv: {self.current_trial['trial_id']} | "
+                f"Schritt {step_index + 1}/{step_count} | {step.task_id}"
+            ),
+            fg=ACCENT,
+        )
 
     def _record_study_event(self, event_type, **fields):
         context = (
@@ -1347,8 +1418,20 @@ class GestureGUI:
         if self.intent_in_progress:
             self.action_status_label.config(text="Intent-Auswertung läuft bereits.", fg=TEXT_PRI)
             return
+        if not self.current_trial:
+            self.action_status_label.config(
+                text="Starte zuerst einen Trial, damit Widgets Szenario und Schritt kennen.",
+                fg="#f0c040",
+            )
+            return
+        if self.current_trial.get("flow_completed"):
+            self.action_status_label.config(
+                text="Dieser Trial ist abgeschlossen. Bitte speichern oder abbrechen.",
+                fg="#f0c040",
+            )
+            return
 
-        study_context = self._current_study_context()
+        study_context = self._trial_study_context()
         transcript = (self.transcribed_text or "").strip()
         voice_event = self.last_voice_event
         if not voice_event or voice_event.get("transcript", "") != transcript:
@@ -1423,14 +1506,65 @@ class GestureGUI:
         self.intent_in_progress = False
         intent_inputs = intent_inputs or {}
         self.last_intent_result = result
-        study_context = self._current_study_context()
-        widget_payload = build_widget_payload(
-            intent_result=result,
-            study_context=study_context,
-            voice_event=intent_inputs.get("voice_event"),
-            gesture_event=intent_inputs.get("gesture_event"),
-            used_modalities=intent_inputs.get("used_modalities"),
-        )
+        study_context = self._trial_study_context()
+        current_step, current_step_index, step_count = self._current_widget_step()
+        raw_decision = decision_from_intent_result(result)
+        step_decision = decision_for_step(current_step.task_id, raw_decision, result)
+
+        if step_decision == "clarify":
+            payload_step = current_step
+            payload_step_index = current_step_index
+            widget_payload = build_widget_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                used_modalities=intent_inputs.get("used_modalities"),
+                event_type="step_update",
+                decision_override=step_decision,
+            )
+        elif current_step_index >= step_count - 1:
+            if self.current_trial:
+                self.current_trial["flow_completed"] = True
+            payload_step = current_step
+            payload_step_index = current_step_index
+            widget_payload = build_trial_completed_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                success=True,
+                decision_override=step_decision,
+                used_modalities=intent_inputs.get("used_modalities"),
+            )
+        else:
+            next_step_index = current_step_index + 1
+            if self.current_trial:
+                self.current_trial["current_step_index"] = next_step_index
+            scenario = self._current_widget_scenario()
+            payload_step = scenario.flow_steps[next_step_index]
+            payload_step_index = next_step_index
+            widget_payload = build_widget_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                used_modalities=intent_inputs.get("used_modalities"),
+                event_type="step_update",
+                decision_override=step_decision,
+            )
         self.last_widget_payload = widget_payload
         self._record_study_event(
             "intent",
@@ -1448,6 +1582,10 @@ class GestureGUI:
             clarification=result.get("clarification") or "",
             llm_confidence_estimate=result.get("llm_confidence_estimate"),
             widget_decision=widget_payload["decision"],
+            widget_event_type=widget_payload["event_type"],
+            step_index=current_step_index,
+            step_count=step_count,
+            task_id=current_step.task_id,
             widget_payload=widget_payload,
             error=result.get("error") or "",
         )
@@ -1467,11 +1605,22 @@ class GestureGUI:
         self.intent_label.config(text=f"Intent: {self._format_intent_result(result)}", fg=ACCENT)
         if result.get("error"):
             self.action_status_label.config(text=result["error"], fg=DANGER)
-        elif result.get("needs_clarification"):
+        elif step_decision == "clarify":
             clarification = result.get("clarification") or "Bitte Eingabe wiederholen."
             self.action_status_label.config(text=f"Rückfrage: {clarification}", fg="#f0c040")
+            self._set_trial_step_status()
+        elif widget_payload["event_type"] == "trial_completed":
+            self.action_status_label.config(
+                text="Szenario abgeschlossen. Bitte Trial speichern oder abbrechen.",
+                fg=ACCENT,
+            )
+            self.trial_status_label.config(
+                text=f"Trial abgeschlossen: {study_context.get('trial_id', '')}",
+                fg=ACCENT,
+            )
         else:
-            self.action_status_label.config(text="Intent erfolgreich ausgewertet.", fg=ACCENT)
+            self.action_status_label.config(text="Intent erfolgreich ausgewertet. Naechster Schritt aktiv.", fg=ACCENT)
+            self._set_trial_step_status()
 
     def _send_widget_payload(self, payload):
         result = self.widget_bridge.send(payload)
@@ -1480,14 +1629,16 @@ class GestureGUI:
     def _on_widget_bridge_result(self, result, payload):
         self._record_study_event(
             "widget_bridge",
-            widget_decision=payload.get("decision", "clarify"),
+            widget_event_type=payload.get("event_type", "decision"),
+            widget_decision=payload.get("decision", ""),
             widget_bridge_sent=result.sent,
             widget_bridge_error=result.error,
             widget_bridge_status=result.response_status,
         )
         if result.sent:
+            label = payload.get("event_type") or payload.get("decision")
             self._append_log_row(
-                f"{datetime.now().strftime('%H:%M:%S')}  WIDGET {payload.get('decision')} sent"
+                f"{datetime.now().strftime('%H:%M:%S')}  WIDGET {label} sent"
             )
         else:
             logger.info("Widget bridge not connected: %s", result.error)
@@ -1532,14 +1683,29 @@ class GestureGUI:
             "trial_id": trial_id,
             "start_timestamp": now_iso(),
             "_start_monotonic": time.monotonic(),
+            "current_step_index": 0,
+            "flow_completed": False,
         }
         self.current_trial_events = []
         self._reset_trial_inputs()
         self._record_study_event("trial_start")
-        self.trial_status_label.config(
-            text=f"Aktiv: {trial_id} | {context['scenario_id']}",
-            fg=ACCENT,
+        step, step_index, step_count = self._current_widget_step()
+        start_context = {**context, "trial_id": trial_id}
+        start_payload = build_scenario_start_payload(
+            study_context=start_context,
+            step=step,
+            step_index=step_index,
+            step_count=step_count,
+            trial_id=trial_id,
         )
+        self.last_widget_payload = start_payload
+        threading.Thread(
+            target=self._send_widget_payload,
+            args=(start_payload,),
+            daemon=True,
+        ).start()
+        self._set_trial_step_status()
+        self.scenario_menu.config(state=tk.DISABLED)
         self._append_log_row(f"{datetime.now().strftime('%H:%M:%S')}  START {trial_id}")
 
     def _finish_trial(self, success):
@@ -1631,6 +1797,7 @@ class GestureGUI:
         )
         self.current_trial = None
         self.current_trial_events = []
+        self.scenario_menu.config(state=tk.NORMAL)
 
     def _derive_trial_recognition_outcome(self, events, intent):
         outcomes = {e.get("recognition_outcome") for e in events if e.get("recognition_outcome")}

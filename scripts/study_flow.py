@@ -1,4 +1,4 @@
-"""Study-flow and widget-task catalog for the car widget prototype."""
+"""Central study-flow and widget-task catalog for the pilot prototype."""
 
 from __future__ import annotations
 
@@ -564,8 +564,31 @@ def scenario_titles() -> tuple[str, ...]:
     )
 
 
+def scenario_labels() -> tuple[str, ...]:
+    return tuple(scenario_label(scenario) for scenario in SCENARIOS)
+
+
+def scenario_label(scenario: StudyScenario) -> str:
+    return (
+        f"{scenario.study_ref} | {scenario.condition} | "
+        f"{scenario.category_name} | {scenario.title}"
+    )
+
+
+def scenario_from_label(label: str) -> StudyScenario:
+    study_ref = label.split("|", 1)[0].strip()
+    return get_scenario(study_ref)
+
+
 def scenario_id_from_title(title: str) -> str:
+    if "|" in title:
+        return title.split("|", 1)[0].strip()
     return title.split(" - ", 1)[0] if " - " in title else title
+
+
+def scenario_prompt(scenario: StudyScenario) -> str:
+    steps = " -> ".join(step.prompt for step in scenario.flow_steps)
+    return f"{scenario.title}. Steps: {steps}"
 
 
 def fallback_scenarios() -> tuple[StudyScenario, ...]:

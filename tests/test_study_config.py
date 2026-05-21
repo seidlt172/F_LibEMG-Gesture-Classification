@@ -3,8 +3,9 @@ import unittest
 from scripts.study_config import build_intent_context
 from scripts.study_config import filter_intent_inputs_for_condition
 from scripts.study_config import gesture_recognition_metadata
-from scripts.study_config import get_scenario
 from scripts.study_config import infer_multimodal_usage_pattern
+from scripts.study_flow import get_scenario
+from scripts.study_flow import scenario_prompt
 
 
 class StudyConfigTests(unittest.TestCase):
@@ -67,18 +68,18 @@ class StudyConfigTests(unittest.TestCase):
         self.assertTrue(result["ignored_voice"])
 
     def test_scenario_context_contains_study_fields(self):
-        scenario = get_scenario("CAN use both", "Browse+Select")
+        scenario = get_scenario("3.3")
         context = build_intent_context(
             base_context="Cockpit.",
-            condition="CAN use both",
-            category="Browse+Select",
-            scenario_id=scenario["scenario_id"],
-            scenario_prompt=scenario["prompt"],
+            condition=scenario.condition,
+            category=scenario.category_name,
+            scenario_id=scenario.scenario_id,
+            scenario_prompt=scenario_prompt(scenario),
             gesture_source="manual",
             operator_gesture="Swipe",
         )
 
-        self.assertIn("MM-BS", context)
+        self.assertIn("STUDY-3.3", context)
         self.assertIn("Browse+Select", context)
         self.assertIn("Operator/Wizard gesture annotation: Swipe", context)
 
