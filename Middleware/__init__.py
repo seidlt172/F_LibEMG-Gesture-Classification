@@ -1,1 +1,1 @@
-# Middleware package for audio recording, speech transcription, and intent parsing.
+# Middleware package for input events, audio, speech, intent parsing, and widget decisions.

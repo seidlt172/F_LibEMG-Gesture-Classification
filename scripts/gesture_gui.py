@@ -43,9 +43,14 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from Middleware.audio_recorder import AudioRecorder
+from Middleware.input_events import build_intent_inputs
+from Middleware.input_events import create_gesture_event
+from Middleware.input_events import create_voice_event
 from Middleware.intent_manager import OllamaIntentClient
 from Middleware.intent_manager import OllamaIntentError
 from Middleware.speech_transcriber import SpeechTranscriber
+from Middleware.widget_bridge import WidgetBridgeClient
+from Middleware.widget_bridge import build_widget_payload
 from libemg.feature_extractor import FeatureExtractor
 from scripts.gesture_config import GESTURE_DISPLAY_NAMES as GESTURE_NAMES
 from scripts.gesture_config import MANUAL_GESTURE_IDS
@@ -53,8 +58,6 @@ from scripts.study_config import CATEGORIES
 from scripts.study_config import CONDITION_ORDERS
 from scripts.study_config import CONDITIONS
 from scripts.study_config import build_intent_context
-from scripts.study_config import filter_intent_inputs_for_condition
-from scripts.study_config import gesture_recognition_metadata
 from scripts.study_config import get_scenario
 from scripts.study_config import infer_multimodal_usage_pattern
 from scripts.study_config import make_trial_id
@@ -248,6 +251,9 @@ class GestureGUI:
         self.last_logged_gesture = "NONE"
         self.last_logged_gesture_source = "none"
         self.last_logged_gesture_confidence = None
+        self.last_voice_event = None
+        self.last_gesture_event = None
+        self.last_widget_payload = None
         self.last_recognition_outcome = "none"
         self.last_wizard_intervention = False
         self.last_intent_result = None
@@ -273,6 +279,7 @@ class GestureGUI:
         self.recorder = AudioRecorder(output_filename=audio_file_path)
         self.transcriber = SpeechTranscriber(model_name="base")
         self.intent_client = OllamaIntentClient.from_env()
+        self.widget_bridge = WidgetBridgeClient()
         self.transcribed_text = ""
         self.intent_in_progress = False
         self._update_scenario_from_selection()
@@ -808,6 +815,7 @@ class GestureGUI:
             "condition": self.condition_var.get(),
             "category": self.category_var.get(),
             "scenario_id": scenario["scenario_id"],
+            "study_ref": scenario.get("study_ref", scenario["scenario_id"]),
             "scenario_prompt": scenario["prompt"],
             "notes": self.notes_var.get().strip(),
         }
@@ -820,6 +828,7 @@ class GestureGUI:
                 "condition",
                 "category",
                 "scenario_id",
+                "study_ref",
                 "scenario_prompt",
                 "notes",
             )}
@@ -1002,25 +1011,36 @@ class GestureGUI:
         self.root.after(200, self._update_feed)
 
     def _log_entry(self, label, source="EMG"):
-        """Add a gesture to the log."""
+        """Confirm a displayed gesture as a structured middleware event."""
         name = GESTURE_NAMES.get(label, f"class_{label}")
         icon = GESTURE_ICONS.get(label, "")
         now  = datetime.now()
         ts   = now.strftime("%H:%M:%S")
-        confidence = getattr(self, "_current_confidence", None) if source == "EMG" else None
-        metadata = gesture_recognition_metadata(
-            gesture_label=name,
-            source=source,
+        normalized_source = "emg" if str(source).lower() == "emg" else source
+        confidence = getattr(self, "_current_confidence", None) if normalized_source == "emg" else None
+        gesture_event = create_gesture_event(
+            name,
+            source=normalized_source,
+            gesture_id=label,
             confidence=confidence,
         )
+        metadata = {
+            "gesture_label": gesture_event["gesture_label"],
+            "gesture_source": gesture_event["source"],
+            "gesture_confidence": gesture_event["confidence"],
+            "recognition_outcome": gesture_event["recognition_outcome"],
+            "wizard_intervention": gesture_event["recognition_outcome"] == "wizard_intervention",
+            "gesture_event": gesture_event,
+        }
 
-        self.last_logged_gesture = name
-        self.last_logged_gesture_source = source
+        self.last_logged_gesture = gesture_event["gesture_label"] or "NONE"
+        self.last_logged_gesture_source = gesture_event["source"]
         self.last_logged_gesture_confidence = confidence
+        self.last_gesture_event = gesture_event
         self.last_recognition_outcome = metadata["recognition_outcome"]
         self.last_wizard_intervention = metadata["wizard_intervention"]
         self.last_gesture_label.config(
-            text=f"Letzte Geste: {self.last_logged_gesture} [{source}]"
+            text=f"Letzte Geste: {self.last_logged_gesture} [{self.last_logged_gesture_source}]"
         )
 
         self._record_study_event(
@@ -1028,12 +1048,12 @@ class GestureGUI:
             **metadata,
         )
 
-        entry = f"{ts}  {icon} {name}  [{source}]"
+        entry = f"{ts}  {icon} {name}  [{self.last_logged_gesture_source}]"
         self._append_log_row(entry)
 
-        if source == "manual":
+        if self.last_logged_gesture_source in {"manual", "wizard"}:
             self.action_status_label.config(
-                text=f"Wizard-Geste gesetzt: {name} [manual]",
+                text=f"Wizard-Geste gesetzt: {name} [{self.last_logged_gesture_source}]",
                 fg="#f0c040",
             )
 
@@ -1043,7 +1063,7 @@ class GestureGUI:
 
     def _log_predicted(self):
         if self._log_btn_enabled and hasattr(self, '_current_label') and self._current_label is not None:
-            self._log_entry(self._current_label, source="EMG")
+            self._log_entry(self._current_label, source="emg")
 
     def _append_log_row(self, entry):
         self.log_listbox.insert(tk.END, entry)
@@ -1244,11 +1264,13 @@ class GestureGUI:
 
         self.transcribed_text = text or ""
         if text:
+            self.last_voice_event = create_voice_event(text, source="whisper")
             logger.info(f"Transcription complete: {text}")
             self._record_study_event(
                 "voice_transcription",
                 voice_transcript=text,
                 recognition_outcome="correct",
+                voice_event=self.last_voice_event,
             )
             self._set_recording_state(
                 "idle",
@@ -1262,11 +1284,17 @@ class GestureGUI:
                 transcription_color=ACCENT,
             )
         else:
+            self.last_voice_event = create_voice_event(
+                "",
+                source="whisper",
+                recognition_outcome="no_recognition",
+            )
             logger.warning("Transcription returned empty text")
             self._record_study_event(
                 "voice_transcription",
                 voice_transcript="",
                 recognition_outcome="no recognition",
+                voice_event=self.last_voice_event,
             )
             self._set_recording_state(
                 "idle",
@@ -1284,10 +1312,16 @@ class GestureGUI:
         if token != self._recording_token:
             return
 
+        self.last_voice_event = create_voice_event(
+            "",
+            source="whisper",
+            recognition_outcome="no_recognition",
+        )
         self._record_study_event(
             "voice_transcription",
             voice_transcript="",
             recognition_outcome="no recognition",
+            voice_event=self.last_voice_event,
             error=message,
         )
         self._set_recording_state(
@@ -1314,17 +1348,32 @@ class GestureGUI:
             self.action_status_label.config(text="Intent-Auswertung läuft bereits.", fg=TEXT_PRI)
             return
 
-        transcript = (self.transcribed_text or "").strip()
-        gesture = self.last_logged_gesture or "NONE"
-        gesture_source = self.last_logged_gesture_source or "none"
         study_context = self._current_study_context()
-        intent_inputs = filter_intent_inputs_for_condition(
+        transcript = (self.transcribed_text or "").strip()
+        voice_event = self.last_voice_event
+        if not voice_event or voice_event.get("transcript", "") != transcript:
+            voice_event = create_voice_event(transcript, source="whisper")
+            self.last_voice_event = voice_event
+
+        gesture_event = self.last_gesture_event
+        if not gesture_event:
+            gesture_event = create_gesture_event(
+                self.last_logged_gesture,
+                source=self.last_logged_gesture_source or "none",
+                confidence=self.last_logged_gesture_confidence,
+            )
+            self.last_gesture_event = gesture_event
+
+        intent_inputs = build_intent_inputs(
             condition=study_context["condition"],
-            transcript=transcript,
-            gesture=gesture,
-            gesture_source=gesture_source,
+            voice_event=voice_event,
+            gesture_event=gesture_event,
         )
-        operator_gesture = gesture if gesture_source == "manual" else None
+        operator_gesture = (
+            intent_inputs["gesture"]
+            if intent_inputs["gesture_source"] in {"manual", "wizard"}
+            else None
+        )
         intent_context = build_intent_context(
             base_context=INTENT_CONTEXT,
             condition=study_context["condition"],
@@ -1374,6 +1423,15 @@ class GestureGUI:
         self.intent_in_progress = False
         intent_inputs = intent_inputs or {}
         self.last_intent_result = result
+        study_context = self._current_study_context()
+        widget_payload = build_widget_payload(
+            intent_result=result,
+            study_context=study_context,
+            voice_event=intent_inputs.get("voice_event"),
+            gesture_event=intent_inputs.get("gesture_event"),
+            used_modalities=intent_inputs.get("used_modalities"),
+        )
+        self.last_widget_payload = widget_payload
         self._record_study_event(
             "intent",
             voice_transcript=intent_inputs.get("transcript", ""),
@@ -1389,8 +1447,15 @@ class GestureGUI:
             needs_clarification=bool(result.get("needs_clarification")),
             clarification=result.get("clarification") or "",
             llm_confidence_estimate=result.get("llm_confidence_estimate"),
+            widget_decision=widget_payload["decision"],
+            widget_payload=widget_payload,
             error=result.get("error") or "",
         )
+        threading.Thread(
+            target=self._send_widget_payload,
+            args=(widget_payload,),
+            daemon=True,
+        ).start()
         self.api_button.config(
             text="Intent auswerten",
             state=tk.NORMAL,
@@ -1407,6 +1472,25 @@ class GestureGUI:
             self.action_status_label.config(text=f"Rückfrage: {clarification}", fg="#f0c040")
         else:
             self.action_status_label.config(text="Intent erfolgreich ausgewertet.", fg=ACCENT)
+
+    def _send_widget_payload(self, payload):
+        result = self.widget_bridge.send(payload)
+        self._post_ui(self._on_widget_bridge_result, result, payload)
+
+    def _on_widget_bridge_result(self, result, payload):
+        self._record_study_event(
+            "widget_bridge",
+            widget_decision=payload.get("decision", "clarify"),
+            widget_bridge_sent=result.sent,
+            widget_bridge_error=result.error,
+            widget_bridge_status=result.response_status,
+        )
+        if result.sent:
+            self._append_log_row(
+                f"{datetime.now().strftime('%H:%M:%S')}  WIDGET {payload.get('decision')} sent"
+            )
+        else:
+            logger.info("Widget bridge not connected: %s", result.error)
 
     def _on_intent_error(self, message):
         self.intent_in_progress = False
@@ -1481,7 +1565,7 @@ class GestureGUI:
         )
         recognition_failures = sum(
             1 for e in events
-            if e.get("recognition_outcome") == "no recognition"
+            if e.get("recognition_outcome") in {"no recognition", "no_recognition"}
         )
         wrong_recognitions = sum(
             1 for e in events
@@ -1494,6 +1578,7 @@ class GestureGUI:
             "condition": self.current_trial["condition"],
             "category": self.current_trial["category"],
             "scenario_id": self.current_trial["scenario_id"],
+            "study_ref": self.current_trial["study_ref"],
             "scenario_prompt": self.current_trial["scenario_prompt"],
             "condition_order": self.current_trial["condition_order"],
             "start_timestamp": self.current_trial["start_timestamp"],
@@ -1553,9 +1638,9 @@ class GestureGUI:
             return "Wizard intervention"
         if "wrong" in outcomes:
             return "wrong"
-        if "no recognition" in outcomes and len(outcomes) > 1:
+        if ("no recognition" in outcomes or "no_recognition" in outcomes) and len(outcomes) > 1:
             return "mixed"
-        if "no recognition" in outcomes:
+        if "no recognition" in outcomes or "no_recognition" in outcomes:
             return "none"
         if intent.get("intent") and intent.get("intent") != "unknown":
             return "correct"
@@ -1568,6 +1653,9 @@ class GestureGUI:
         self.last_logged_gesture = "NONE"
         self.last_logged_gesture_source = "none"
         self.last_logged_gesture_confidence = None
+        self.last_voice_event = None
+        self.last_gesture_event = None
+        self.last_widget_payload = None
         self.last_recognition_outcome = "none"
         self.last_wizard_intervention = False
         self.last_intent_result = None
@@ -1607,19 +1695,26 @@ class GestureGUI:
         self._log_entry(gesture_id, source="manual")
 
     def _log_no_recognition(self):
+        gesture_event = create_gesture_event(
+            None,
+            source="manual",
+            recognition_outcome="no_recognition",
+        )
         self.last_logged_gesture = "NONE"
         self.last_logged_gesture_source = "none"
         self.last_logged_gesture_confidence = None
-        self.last_recognition_outcome = "no recognition"
+        self.last_gesture_event = gesture_event
+        self.last_recognition_outcome = "no_recognition"
         self.last_wizard_intervention = True
         self.last_gesture_label.config(text="Letzte Geste: NONE [no recognition]")
         self._record_study_event(
             "gesture",
-            **gesture_recognition_metadata(
-                gesture_label=None,
-                source="manual",
-                confidence=None,
-            ),
+            gesture_label=None,
+            gesture_source="manual",
+            gesture_confidence=None,
+            recognition_outcome="no_recognition",
+            wizard_intervention=True,
+            gesture_event=gesture_event,
         )
         self._append_log_row(f"{datetime.now().strftime('%H:%M:%S')}  ? No recognition  [manual]")
         self.action_status_label.config(

@@ -14,54 +14,66 @@ SCENARIOS = {
     "Voice only": {
         "Accept/Reject": {
             "scenario_id": "VO-AR",
+            "study_ref": "1.1",
             "prompt": "An incoming call appears. Accept or reject it using voice only.",
         },
         "Select+Adjust": {
             "scenario_id": "VO-SA",
+            "study_ref": "2.1",
             "prompt": "Select the volume control and make it louder using voice only.",
         },
         "Browse+Select": {
             "scenario_id": "VO-BS",
+            "study_ref": "3.1",
             "prompt": "Open a received message and close it again using voice only.",
         },
         "Confirm+Modify": {
             "scenario_id": "VO-CM",
+            "study_ref": "4.1",
             "prompt": "Accept navigation guidance and increase announcement volume using voice only.",
         },
     },
     "Gesture only": {
         "Accept/Reject": {
             "scenario_id": "GE-AR",
+            "study_ref": "1.2",
             "prompt": "A suggested song appears. Accept or reject it using EMG gesture only.",
         },
         "Select+Adjust": {
             "scenario_id": "GE-SA",
+            "study_ref": "2.2",
             "prompt": "Select seat heating and increase it using EMG gesture only.",
         },
         "Browse+Select": {
             "scenario_id": "GE-BS",
+            "study_ref": "3.2",
             "prompt": "Browse route options and select one route using EMG gesture only.",
         },
         "Confirm+Modify": {
             "scenario_id": "GE-CM",
+            "study_ref": "4.2",
             "prompt": "Accept an ambient light suggestion and increase brightness using EMG gesture only.",
         },
     },
     "CAN use both": {
         "Accept/Reject": {
             "scenario_id": "MM-AR",
+            "study_ref": "1.3",
             "prompt": "A navigation route suggestion appears. Accept or reject it using voice, gesture, or both.",
         },
         "Select+Adjust": {
             "scenario_id": "MM-SA",
+            "study_ref": "2.3",
             "prompt": "Change the ambient light color and make it brighter using voice, gesture, or both.",
         },
         "Browse+Select": {
             "scenario_id": "MM-BS",
+            "study_ref": "3.3",
             "prompt": "Resume paused media and skip to the next song using voice, gesture, or both.",
         },
         "Confirm+Modify": {
             "scenario_id": "MM-CM",
+            "study_ref": "4.3",
             "prompt": "Accept an incoming call and regulate volume using voice, gesture, or both.",
         },
     },

@@ -19,6 +19,8 @@ The pilot study design remains separate in [STUDY_DESIGN.md](STUDY_DESIGN.md).
 - Trains a LibEMG classifier for live gesture prediction.
 - Records microphone input and transcribes German speech with local Whisper.
 - Combines the latest transcript and confirmed gesture through a local Ollama intent parser.
+- Normalizes real EMG, voice, and Wizard fallback into middleware input events before intent parsing.
+- Sends normalized widget decisions to the participant-facing cockpit interface.
 - Provides operator-only manual gesture buttons for fallback/Wizard-of-Oz support during pilot sessions.
 
 ## Current Gesture Vocabulary
@@ -54,9 +56,12 @@ When changing the gesture vocabulary:
 │   ├── diagnose_audio.py      # microphone/PyAudio troubleshooting
 │   ├── live_demo.py           # terminal EMG prediction demo
 │   └── gesture_gui.py         # multimodal GUI implementation
+├── car_widgets/               # participant-facing in-car widget interface
 ├── Middleware/
 │   ├── audio_recorder.py      # microphone recording
+│   ├── input_events.py        # normalized voice/gesture event schema
 │   ├── intent_manager.py      # local Ollama intent parser
+│   ├── widget_bridge.py       # normalized decisions for car widgets
 │   ├── speech_transcriber.py  # local Whisper transcription
 │   └── network_client.py      # legacy socket helper
 ├── notebooks/
@@ -67,7 +72,7 @@ When changing the gesture vocabulary:
 │   ├── inspect/               # generated signal plots
 │   └── sample/                # placeholder for optional sample data
 ├── models/                    # trained classifier output
-├── tests/                     # intent-manager tests
+├── tests/                     # unit tests
 ├── gesture_gui.py             # user-facing GUI launcher
 ├── STUDY_DESIGN.md            # pilot study design
 └── requirements.txt
@@ -179,6 +184,63 @@ export OLLAMA_MODEL=qwen3.5:2b
 
 The LLM output is an interpretation layer for the prototype and should not be treated as recognition ground truth in study data.
 
+## Middleware-Centered Pipeline
+
+The integration path is:
+
+```text
+EMG source or manual Wizard fallback
+        -> Middleware input event normalization
+        -> voice transcript + gesture event + study context
+        -> local Ollama intent parser / rule fallback
+        -> widget decision payload
+        -> participant-facing car widgets
+```
+
+Future glove or lab EMG hardware should send normalized gesture events into the
+middleware with `source=emg`. The current manual buttons remain useful for
+operator fallback and Wizard-of-Oz recovery, but they are logged as
+`source=manual` and must not be counted as participant EMG recognition.
+
+Widgets do not connect directly to EMG, Whisper, or Ollama. They consume only
+middleware decisions:
+
+```json
+{
+  "decision": "execute",
+  "action": "accept",
+  "target": "call",
+  "condition": "CAN use both",
+  "study_ref": "4.3",
+  "source": {
+    "voice_event": "...",
+    "gesture_event": "...",
+    "used_modalities": "voice+gesture"
+  }
+}
+```
+
+The old `accepted`, `rejected`, and `unclear` labels are still accepted as
+compatibility aliases for `execute`, `cancel`, and `clarify`.
+
+### Existing EMG Flow
+
+The live EMG connection is already part of the operator interface. When the
+armband stream and trained comparison data/model are available, the current
+predicted gesture is shown in the top-right gesture area instead of
+`Warte auf Daten...`.
+
+Clicking `Einloggen` confirms the currently displayed armband prediction as a
+real EMG event. This creates a structured gesture event with `source=emg`,
+`gesture_label`, `gesture_id`, `confidence`, `timestamp`, and
+`recognition_outcome`. The intent pipeline uses that structured event through
+`last_gesture_event` and the structured study log.
+
+Do not parse visible terminal output or text log rows as middleware input. The
+terminal and visible log are only debugging views. The operator/Wizard buttons
+remain fallback controls and create `source=manual` events with
+`wizard_intervention=true`.
+
 ## Quick Start
 
 1. Connect the Mac to the MindRove WiFi network, usually named `MindRove_XXXX`.
@@ -281,7 +343,29 @@ The manual gesture buttons are for the study team, not for participants. Partici
 5. End the trial with `Erfolgreich beenden` or `Abbrechen`.
 6. Export completed trials with `EXPORT JSONL`.
 
-`No recognition` is logged as a recognition outcome, not as a gesture label. Manual gesture clicks are logged with `gesture_source=manual` and `wizard_intervention=true`; EMG-confirmed gestures are logged with `gesture_source=EMG` and `wizard_intervention=false`.
+`No recognition` is logged as a recognition outcome, not as a gesture label. Manual gesture clicks are logged with `gesture_source=manual` and `wizard_intervention=true`; EMG-confirmed gestures are logged with `gesture_source=emg` and `wizard_intervention=false`.
+
+## Participant-Facing Car Widgets
+
+The provisional in-car interface is separate from the operator GUI:
+
+```bash
+python -m car_widgets.app
+```
+
+It shows a simple cockpit UI with navigation, audio, messages, calls, ambient light, and climate widgets. The active study condition is visible to participants, including whether they should use voice, EMG gestures, or either modality. The demo panel loads the 12 study flows and can simulate normalized middleware decisions: `execute`, `cancel`, and `clarify`.
+
+When running, the widget app also listens for middleware decisions at:
+
+```text
+http://127.0.0.1:8765/widget-event
+```
+
+The operator GUI sends a widget decision after every successful intent
+evaluation. If the widget app is not open, the operator GUI logs the failed
+bridge attempt and remains usable.
+
+The visual design is intentionally centralized in `car_widgets/theme.py` and componentized in `car_widgets/components.py`, so the provisional UI can later be replaced with the Figma design without changing the feedback/state logic.
 
 ## Tests And Checks
 
