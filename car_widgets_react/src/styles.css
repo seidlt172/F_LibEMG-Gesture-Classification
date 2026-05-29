@@ -368,6 +368,362 @@ small {
   box-shadow: inset 0 0 0 1px rgba(59,130,246,0.3);
 }
 
+.message-widget {
+  height: 204px;
+  max-width: 178px;
+  width: 100%;
+  align-self: center;
+  padding: 12px;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #252530;
+  overflow: hidden;
+}
+
+.message-widget.active {
+  border-color: var(--gesture);
+  box-shadow: 0 10px 28px rgba(124,58,237,0.2), 0 8px 24px rgba(0,0,0,0.45);
+}
+
+.message-widget-title {
+  display: block;
+  color: #99a1af;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.message-preview-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  padding: 8px;
+  border-radius: 14px;
+  background: #1e1e2e;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+
+.message-preview-title {
+  color: #d1d5dc;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.375;
+  white-space: nowrap;
+}
+
+.message-preview-sender {
+  color: #99a1af;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.message-preview-sender strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.message-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.message-action-button {
+  appearance: none;
+  border: 0;
+  min-width: 0;
+  flex: 1 1 0;
+  padding: 4px 8px;
+  border-radius: 16px;
+  background: var(--gesture);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.ambient-widget {
+  height: 204px;
+  max-width: 178px;
+  width: 100%;
+  align-self: center;
+  padding: 16px;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  background: #252530;
+  overflow: hidden;
+}
+
+.ambient-widget.gesture {
+  box-shadow: inset 0 0 0 1px rgba(124,58,237,0.08);
+}
+
+.ambient-widget.combined {
+  box-shadow: inset 0 0 0 1px rgba(34,197,94,0.08);
+}
+
+.ambient-widget-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ambient-widget-title {
+  display: block;
+  color: #99a1af;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.ambient-slider-panel {
+  width: 100%;
+  padding: 10px;
+  border-radius: 14px;
+  background: #1e1e2e;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+
+.ambient-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.ambient-slider-icon {
+  flex: 0 0 11px;
+  width: 11px;
+  color: #99a1af;
+  font-size: 10px;
+  line-height: 1;
+  text-align: center;
+}
+
+.ambient-slider {
+  position: relative;
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.ambient-slider.rgb {
+  background: linear-gradient(to right, #ff0000, #ff8000, #ffff00, #00ff00, #0080ff, #8000ff, #ff00ff);
+}
+
+.ambient-slider.brightness {
+  background: linear-gradient(to right, #ffffff, #22c55e);
+}
+
+.ambient-widget.gesture .ambient-slider.brightness {
+  background: linear-gradient(to right, #ffffff, #7c3aed);
+}
+
+.ambient-slider-handle {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(255,255,255,0.68);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  transform: translate(-50%, -50%);
+}
+
+.ambient-gesture-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+}
+
+.ambient-gesture-chip {
+  min-height: 23px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #dab2ff;
+  background: #353545;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.ambient-gesture-chip span {
+  color: inherit;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.ambient-widget.combined .ambient-gesture-chip {
+  color: #7bf1a8;
+  background: #1a3a2a;
+}
+
+.climate-widget {
+  height: 204px;
+  max-width: 178px;
+  width: 100%;
+  align-self: center;
+  padding: 16px;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  background: #252530;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(249,115,22,0.08);
+}
+
+.climate-widget-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.climate-widget-title {
+  display: block;
+  color: #99a1af;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.climate-seat-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.climate-seat-row {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.climate-seat-label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.climate-seat-label span:first-child {
+  color: #99a1af;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.climate-seat-icon {
+  width: 28px;
+  height: 35px;
+  border-radius: 8px 8px 10px 10px;
+  display: grid;
+  place-items: center;
+  color: transparent;
+  background:
+    linear-gradient(180deg, rgba(249,115,22,0.95), rgba(249,115,22,0.15)) center 8px / 2px 18px no-repeat,
+    linear-gradient(135deg, #3b4a5e 0%, #2e3a4d 100%);
+  border: 1px solid #4a6080;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+
+.climate-seat-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.climate-seat-control strong {
+  color: #ff8904;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.climate-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.climate-stepper span {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  background: #353545;
+  color: #d1d5dc;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.climate-gesture-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+}
+
+.climate-gesture-chip {
+  min-height: 23px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #dab2ff;
+  background: #353545;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.climate-gesture-chip span {
+  color: inherit;
+  font-size: 11px;
+  line-height: 1;
+}
+
 .tile {
   border: 1px solid var(--border);
   border-radius: var(--radius);

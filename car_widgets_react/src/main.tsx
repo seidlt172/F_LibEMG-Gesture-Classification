@@ -214,30 +214,101 @@ function MusicWidget({ active, state }: { active: boolean; state: CockpitState }
 
 function MessageWidget({ active, state }: { active: boolean; state: CockpitState }) {
   return (
-    <div className={`widget-card ${active ? "active" : ""}`}>
-      <div className="widget-row"><Icon name="msg" /><span className="eyebrow">Nachrichten</span></div>
-      <strong className="widget-title">{state.messageOpen ? "Nachricht offen" : "Neue Nachricht"}</strong>
-      <span className="widget-row small">Mia: Bin in 5 Minuten da.</span>
+    <div className={`widget-card message-widget ${active ? "active" : ""}`}>
+      <span className="eyebrow message-widget-title">Nachrichten</span>
+
+      <div className="message-preview-panel">
+        <strong className="message-preview-title">{state.messageOpen ? "Nachricht offen" : "Neue Nachricht"}</strong>
+        <span className="message-preview-sender">Von: <strong>Anna</strong></span>
+      </div>
+
+      <div className="message-action-row" aria-label="Nachrichtenaktionen">
+        <button className="message-action-button" type="button">Öffnen</button>
+        <button className="message-action-button" type="button">Schließen</button>
+      </div>
     </div>
   );
 }
 
 function AmbientWidget({ state }: { state: CockpitState }) {
+  const brightness = Math.max(0, Math.min(100, state.ambientBrightness));
+  const colorPosition = state.ambientColor === "Warm" ? 18 : state.ambientColor === "Blau" ? 70 : 45;
+  const condition = state.activePayload?.condition;
+  const isCombined = condition === "CAN use both";
+
   return (
-    <div className="widget-card compact">
-      <div className="widget-row"><Icon name="light" /><span className="eyebrow">Ambientebeleuchtung</span></div>
-      <strong className="widget-title">{state.ambientColor}</strong>
-      <span className="widget-row small">Helligk. {state.ambientBrightness}%</span>
+    <div className={`widget-card ambient-widget ${isCombined ? "combined" : "gesture"}`}>
+      <div className="ambient-widget-main">
+        <span className="eyebrow ambient-widget-title">Ambientebeleuchtung</span>
+
+        <div className="ambient-slider-panel">
+          <div className="ambient-slider-row" aria-label={`Farbe ${state.ambientColor}`}>
+            <span className="ambient-slider-icon" aria-hidden>◌</span>
+            <div className="ambient-slider rgb">
+              <span className="ambient-slider-handle" style={{ left: `${colorPosition}%` }} />
+            </div>
+          </div>
+
+          <div className="ambient-slider-row" aria-label={`Helligkeit ${brightness}%`}>
+            <span className="ambient-slider-icon" aria-hidden>☼</span>
+            <div className="ambient-slider brightness">
+              <span className="ambient-slider-handle" style={{ left: `${brightness}%` }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="ambient-gesture-panel" aria-label="Gesten">
+        <span className="ambient-gesture-chip"><span aria-hidden>↔</span>Swipe</span>
+        <span className="ambient-gesture-chip"><span aria-hidden>↻</span>Drehen</span>
+      </div>
     </div>
   );
 }
 
 function ClimateWidget({ state }: { state: CockpitState }) {
+  const seatOneLevel = Math.max(1, Math.min(3, state.seatLevel));
+
   return (
-    <div className="widget-card compact">
-      <div className="widget-row"><Icon name="climate" /><span className="eyebrow">Klima</span></div>
-      <strong className="widget-title">Sitzstufe {state.seatLevel}</strong>
-      <span className="widget-row small">21°C</span>
+    <div className="widget-card climate-widget">
+      <div className="climate-widget-main">
+        <span className="eyebrow climate-widget-title">Klimamenü</span>
+
+        <div className="climate-seat-list">
+          <div className="climate-seat-row">
+            <div className="climate-seat-label">
+              <span>Sitz 1:</span>
+              <span className="climate-seat-icon" aria-hidden>▰</span>
+            </div>
+            <div className="climate-seat-control">
+              <strong>Stufe {seatOneLevel}</strong>
+              <span className="climate-stepper" aria-hidden>
+                <span>⌃</span>
+                <span>⌄</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="climate-seat-row">
+            <div className="climate-seat-label">
+              <span>Sitz 2:</span>
+              <span className="climate-seat-icon" aria-hidden>▰</span>
+            </div>
+            <div className="climate-seat-control">
+              <strong>Stufe 1</strong>
+              <span className="climate-stepper" aria-hidden>
+                <span>⌃</span>
+                <span>⌄</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="climate-gesture-panel" aria-label="Gesten">
+        <span className="climate-gesture-chip"><span aria-hidden>↔</span>Swipe</span>
+        <span className="climate-gesture-chip"><span aria-hidden>↻</span>Drehen</span>
+      </div>
     </div>
   );
 }
