@@ -60,6 +60,7 @@ function App() {
   const [lastEventId, setLastEventId] = useState(0);
   const [bridgeStatus, setBridgeStatus] = useState("Warte auf Middleware");
   const [previewScenario, setPreviewScenario] = useState<PreviewScenario>("off");
+  const [taskInfoOpen, setTaskInfoOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(async () => {
@@ -110,19 +111,16 @@ function App() {
       {previewActive && <div className="preview-mode-note">Preview mode · not study data</div>}
 
       <div className="core">
-        <MapPanel>
-          <div className="taskband inside-map">
-            <div>
-              <span className="eyebrow">Aktuelle Aufgabe</span>
-              <h2>{displayPayload ? `${displayPayload.study_ref ?? ""} ${displayPayload.scenario_prompt || displayPayload.overlay_title || "Studienaufgabe"}` : "Kein aktiver Trial"}</h2>
-              <p>{taskText(displayPayload, displayState.completed, stepLabel)}</p>
-            </div>
-            <div className="guidance guidance-inline">
-              <span>{guidance}</span>
-              {displayPayload?.expected_voice && <strong className="pill voice">{displayPayload.expected_voice}</strong>}
-              {displayPayload?.expected_gesture && <strong className="pill gesture">{displayPayload.expected_gesture}{displayPayload.gesture_ref ? ` (${displayPayload.gesture_ref})` : ""}</strong>}
-            </div>
-          </div>
+        <MapPanel
+          taskInfoOpen={taskInfoOpen}
+          onToggleTaskInfo={() => setTaskInfoOpen((open) => !open)}
+        >
+          <TaskInfoOverlay
+            payload={displayPayload}
+            state={displayState}
+            stepLabel={stepLabel}
+            guidance={guidance}
+          />
         </MapPanel>
 
         <aside className="sidebar">
@@ -385,11 +383,57 @@ function ModeBadge({ condition }: { condition?: string | null }) {
   );
 }
 
-function MapPanel({ children }: { children?: React.ReactNode }) {
+function MapPanel({
+  children,
+  taskInfoOpen,
+  onToggleTaskInfo,
+}: {
+  children?: React.ReactNode;
+  taskInfoOpen: boolean;
+  onToggleTaskInfo: () => void;
+}) {
   return (
     <section className="map-panel">
-      <div className="fake-map">{children || <div className="map-placeholder">Karte / Navigation</div>}</div>
+      <div className="fake-map">
+        <button
+          className={`map-info-button ${taskInfoOpen ? "active" : ""}`}
+          type="button"
+          aria-label={taskInfoOpen ? "Aufgabeninfo ausblenden" : "Aufgabeninfo anzeigen"}
+          aria-expanded={taskInfoOpen}
+          onClick={onToggleTaskInfo}
+        >
+          i
+        </button>
+        {taskInfoOpen && children}
+      </div>
     </section>
+  );
+}
+
+function TaskInfoOverlay({
+  payload,
+  state,
+  stepLabel,
+  guidance,
+}: {
+  payload: WidgetPayload | null;
+  state: CockpitState;
+  stepLabel: string;
+  guidance: string;
+}) {
+  return (
+    <div className="taskband inside-map taskband-overlay">
+      <div>
+        <span className="eyebrow">Aktuelle Aufgabe</span>
+        <h2>{payload ? `${payload.study_ref ?? ""} ${payload.scenario_prompt || payload.overlay_title || "Studienaufgabe"}` : "Kein aktiver Trial"}</h2>
+        <p>{taskText(payload, state.completed, stepLabel)}</p>
+      </div>
+      <div className="guidance guidance-inline">
+        <span>{guidance}</span>
+        {payload?.expected_voice && <strong className="pill voice">{payload.expected_voice}</strong>}
+        {payload?.expected_gesture && <strong className="pill gesture">{payload.expected_gesture}{payload.gesture_ref ? ` (${payload.gesture_ref})` : ""}</strong>}
+      </div>
+    </div>
   );
 }
 
