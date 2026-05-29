@@ -5,6 +5,18 @@ import "./styles.css";
 
 const bridgeUrl = import.meta.env.VITE_WIDGET_EVENT_URL ?? "http://127.0.0.1:8765/latest";
 
+type PreviewScenario =
+  | "off"
+  | "ambient-waiting"
+  | "ambient-swipe"
+  | "ambient-rotate"
+  | "ambient-confirmed"
+  | "call-incoming"
+  | "navigation-route"
+  | "music-suggestion"
+  | "message-open"
+  | "climate-seat";
+
 interface CockpitState {
   activePayload: WidgetPayload | null;
   completed: boolean;
@@ -47,6 +59,7 @@ function App() {
   const [state, setState] = useState<CockpitState>(() => createIdleState());
   const [lastEventId, setLastEventId] = useState(0);
   const [bridgeStatus, setBridgeStatus] = useState("Warte auf Middleware");
+  const [previewScenario, setPreviewScenario] = useState<PreviewScenario>("off");
 
   useEffect(() => {
     const timer = window.setInterval(async () => {
@@ -66,15 +79,20 @@ function App() {
     return () => window.clearInterval(timer);
   }, [lastEventId]);
 
-  const payload = state.activePayload;
-  const guidance = useMemo(() => guidanceFor(payload), [payload]);
-  const activeDomain = payload?.domain !== "unknown" ? payload?.domain : undefined;
-  const detectedGesture = payload?.source?.gesture_event?.gesture_label ?? undefined;
-  const detectedGestureConfidence = payload?.source?.gesture_event?.confidence ?? undefined;
-  const usedModalities = payload?.source?.used_modalities;
-  const stepLabel = payload && typeof payload.step_index === "number" && payload.step_count
-    ? `${(payload.step_index ?? 0) + 1}/${payload.step_count}`
+  const livePayload = state.activePayload;
+  // Temporary UI preview helper for popup/widget design. Remove or disable before final study run.
+  const previewPayload = useMemo(() => createPreviewPayload(previewScenario), [previewScenario]);
+  const displayPayload = previewPayload ?? livePayload;
+  const displayState = useMemo(() => createPreviewState(state, previewScenario, previewPayload), [state, previewScenario, previewPayload]);
+  const guidance = useMemo(() => guidanceFor(displayPayload), [displayPayload]);
+  const activeDomain = displayPayload?.domain !== "unknown" ? displayPayload?.domain : undefined;
+  const detectedGesture = displayPayload?.source?.gesture_event?.gesture_label ?? undefined;
+  const detectedGestureConfidence = displayPayload?.source?.gesture_event?.confidence ?? undefined;
+  const usedModalities = displayPayload?.source?.used_modalities;
+  const stepLabel = displayPayload && typeof displayPayload.step_index === "number" && displayPayload.step_count
+    ? `${(displayPayload.step_index ?? 0) + 1}/${displayPayload.step_count}`
     : "";
+  const previewActive = previewScenario !== "off";
 
   return (
     <main className="shell cockpit-shell">
@@ -83,21 +101,26 @@ function App() {
           <h1>Driver Cockpit</h1>
           <p className="bridge-status">{bridgeStatus}</p>
         </div>
-        <ModeBadge condition={payload?.condition} />
+        <div className="topbar-tools">
+          <PreviewScenarioControl value={previewScenario} onChange={setPreviewScenario} />
+          <ModeBadge condition={displayPayload?.condition} />
+        </div>
       </header>
+
+      {previewActive && <div className="preview-mode-note">Preview mode · not study data</div>}
 
       <div className="core">
         <MapPanel>
           <div className="taskband inside-map">
             <div>
               <span className="eyebrow">Aktuelle Aufgabe</span>
-              <h2>{payload ? `${payload.study_ref ?? ""} ${payload.scenario_prompt || payload.overlay_title || "Studienaufgabe"}` : "Kein aktiver Trial"}</h2>
-              <p>{taskText(payload, state.completed, stepLabel)}</p>
+              <h2>{displayPayload ? `${displayPayload.study_ref ?? ""} ${displayPayload.scenario_prompt || displayPayload.overlay_title || "Studienaufgabe"}` : "Kein aktiver Trial"}</h2>
+              <p>{taskText(displayPayload, displayState.completed, stepLabel)}</p>
             </div>
             <div className="guidance guidance-inline">
               <span>{guidance}</span>
-              {payload?.expected_voice && <strong className="pill voice">{payload.expected_voice}</strong>}
-              {payload?.expected_gesture && <strong className="pill gesture">{payload.expected_gesture}{payload.gesture_ref ? ` (${payload.gesture_ref})` : ""}</strong>}
+              {displayPayload?.expected_voice && <strong className="pill voice">{displayPayload.expected_voice}</strong>}
+              {displayPayload?.expected_gesture && <strong className="pill gesture">{displayPayload.expected_gesture}{displayPayload.gesture_ref ? ` (${displayPayload.gesture_ref})` : ""}</strong>}
             </div>
           </div>
         </MapPanel>
@@ -105,22 +128,231 @@ function App() {
         <aside className="sidebar">
           <SideWidgets
             activeDomain={activeDomain}
-            state={state}
+            state={displayState}
             detectedGesture={detectedGesture}
             detectedGestureConfidence={detectedGestureConfidence}
             usedModalities={usedModalities}
-            condition={payload?.condition}
+            condition={displayPayload?.condition}
           />
         </aside>
       </div>
 
-      <BottomControls state={state} />
+      <BottomControls state={displayState} />
 
-      <InteractionPopup payload={payload} state={state} />
+      <InteractionPopup payload={displayPayload} state={displayState} />
 
-      <FeedbackBadge decision={state.decision} feedback={state.feedback} />
+      <FeedbackBadge decision={displayState.decision} feedback={displayState.feedback} />
     </main>
   );
+}
+
+function PreviewScenarioControl({
+  value,
+  onChange,
+}: {
+  value: PreviewScenario;
+  onChange: (value: PreviewScenario) => void;
+}) {
+  return (
+    <label className="preview-control">
+      <span>Preview scenario</span>
+      <select value={value} onChange={(event) => onChange(event.target.value as PreviewScenario)}>
+        <option value="off">Off / Live middleware</option>
+        <option value="ambient-waiting">Ambient · Waiting</option>
+        <option value="ambient-swipe">Ambient · Swipe detected</option>
+        <option value="ambient-rotate">Ambient · Drehen detected</option>
+        <option value="ambient-confirmed">Ambient · Confirmed</option>
+        <option value="call-incoming">Call · Incoming</option>
+        <option value="navigation-route">Navigation · Route suggestion</option>
+        <option value="music-suggestion">Music · Suggestion</option>
+        <option value="message-open">Message · Open message</option>
+        <option value="climate-seat">Climate · Seat heating</option>
+      </select>
+    </label>
+  );
+}
+
+function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload | null {
+  const basePayload: WidgetPayload = {
+    event_type: "step_update",
+    step_index: 0,
+    step_count: 1,
+    study_ref: "Preview",
+  };
+
+  switch (previewScenario) {
+    case "ambient-waiting":
+      return {
+        ...basePayload,
+        domain: "ambient_light",
+        condition: "Gesture only",
+        prompt: "Passe die Ambientebeleuchtung an.",
+        overlay_title: "Ambientebeleuchtung",
+        overlay_body: "Warte auf Geste.",
+        expected_gesture: "Swipe",
+        task_id: "AMBIENT-COLOR",
+        source: { used_modalities: "none" },
+      };
+    case "ambient-swipe":
+      return {
+        ...basePayload,
+        domain: "ambient_light",
+        condition: "Gesture only",
+        prompt: "Passe die Ambientebeleuchtung an.",
+        overlay_title: "Ambientebeleuchtung",
+        overlay_body: "Swipe erkannt.",
+        expected_gesture: "Swipe",
+        task_id: "AMBIENT-COLOR",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Swipe",
+            gesture_id: 2,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "ambient-rotate":
+      return {
+        ...basePayload,
+        domain: "ambient_light",
+        condition: "Gesture only",
+        prompt: "Passe die Ambientebeleuchtung an.",
+        overlay_title: "Ambientebeleuchtung",
+        overlay_body: "Drehen erkannt.",
+        expected_gesture: "Handgelenk drehen",
+        task_id: "AMBIENT-BRIGHTER",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Handgelenk drehen",
+            gesture_id: 3,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "ambient-confirmed":
+      return {
+        ...basePayload,
+        domain: "ambient_light",
+        condition: "Gesture only",
+        decision: "execute",
+        prompt: "Ambientebeleuchtung aktualisiert.",
+        overlay_title: "Ambientebeleuchtung",
+        overlay_body: "Ambientebeleuchtung aktualisiert.",
+        expected_gesture: "Daumen hoch",
+        task_id: "AMBIENT-NIGHTMODE",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Daumen hoch",
+            gesture_id: 1,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "call-incoming":
+      return {
+        ...basePayload,
+        domain: "calls",
+        condition: "Voice only",
+        prompt: "Eingehenden Anruf von Max Mustermann annehmen oder ablehnen.",
+        overlay_title: "Eingehender Anruf",
+        overlay_body: "Max Mustermann ruft an.",
+        expected_voice: "Annehmen",
+        task_id: "CALL-INCOMING",
+        source: { used_modalities: "voice" },
+      };
+    case "navigation-route":
+      return {
+        ...basePayload,
+        domain: "navigation",
+        condition: "CAN use both",
+        prompt: "Neue Route ist 8 Minuten schneller.",
+        overlay_title: "Navigation",
+        overlay_body: "Route vorschlagen.",
+        expected_gesture: "Daumen hoch",
+        expected_voice: "Annehmen",
+        task_id: "NAV-ACCEPT-ROUTE",
+        source: { used_modalities: "voice+gesture" },
+      };
+    case "music-suggestion":
+      return {
+        ...basePayload,
+        domain: "audio",
+        condition: "Voice only",
+        prompt: "Musikvorschlag abspielen.",
+        overlay_title: "Musik",
+        overlay_body: "Night Drive abspielen?",
+        expected_voice: "Abspielen",
+        task_id: "AUDIO-SUGGESTION",
+        source: { used_modalities: "voice" },
+      };
+    case "message-open":
+      return {
+        ...basePayload,
+        domain: "messages",
+        condition: "Voice only",
+        prompt: "Neue Nachricht von Anna öffnen.",
+        overlay_title: "Nachrichten",
+        overlay_body: "Neue Nachricht von Anna.",
+        expected_voice: "Öffnen",
+        task_id: "MESSAGE-OPEN",
+        source: { used_modalities: "voice" },
+      };
+    case "climate-seat":
+      return {
+        ...basePayload,
+        domain: "climate",
+        condition: "Gesture only",
+        prompt: "Sitzheizung wärmer stellen.",
+        overlay_title: "Sitzheizung",
+        overlay_body: "Sitz 1 wärmer stellen.",
+        expected_gesture: "Handgelenk drehen",
+        task_id: "CLIMATE-SEAT-WARMER",
+        source: { used_modalities: "gesture" },
+      };
+    default:
+      return null;
+  }
+}
+
+function createPreviewState(state: CockpitState, previewScenario: PreviewScenario, previewPayload: WidgetPayload | null): CockpitState {
+  if (!previewPayload) {
+    return state;
+  }
+
+  const previewState: CockpitState = {
+    ...state,
+    activePayload: previewPayload,
+    completed: previewPayload.decision === "execute",
+    decision: previewPayload.decision ?? "",
+    feedback: "Preview mode · not study data",
+  };
+
+  switch (previewScenario) {
+    case "ambient-swipe":
+      return { ...previewState, ambientColor: "Warm" };
+    case "ambient-rotate":
+      return { ...previewState, ambientBrightness: 75 };
+    case "ambient-confirmed":
+      return { ...previewState, ambientColor: "Warm", ambientBrightness: 70 };
+    case "call-incoming":
+      return { ...previewState, callIncoming: true, callActive: false };
+    case "navigation-route":
+      return { ...previewState, routeActive: true, routeIndex: 1 };
+    case "music-suggestion":
+      return { ...previewState, audioPlaying: true, track: "Night Drive" };
+    case "message-open":
+      return { ...previewState, messageOpen: true };
+    case "climate-seat":
+      return { ...previewState, seatLevel: 2 };
+    default:
+      return previewState;
+  }
 }
 
 function Icon({ name }: { name: string }) {
@@ -180,6 +412,18 @@ function SideWidgets({
     <div className="side-widgets">
       <MusicWidget active={activeDomain === "audio"} state={state} />
       <MessageWidget active={activeDomain === "messages"} state={state} />
+      <NavigationWidget
+        active={activeDomain === "navigation"}
+        state={state}
+        condition={condition}
+        detectedGesture={detectedGesture}
+      />
+      <CallWidget
+        active={activeDomain === "calls"}
+        state={state}
+        condition={condition}
+        detectedGesture={detectedGesture}
+      />
       <AmbientWidget
         state={state}
         isActive={activeDomain === "ambient_light"}
@@ -189,6 +433,151 @@ function SideWidgets({
         condition={condition}
       />
       <ClimateWidget state={state} />
+    </div>
+  );
+}
+
+function NavigationWidget({
+  active,
+  state,
+  condition,
+  detectedGesture,
+}: {
+  active: boolean;
+  state: CockpitState;
+  condition?: string | null;
+  detectedGesture?: string | null;
+}) {
+  const isGesture = condition === "Gesture only";
+  const isCombined = condition === "CAN use both";
+  const progress = state.routeActive ? 75 : 35;
+  const routeAActive = state.routeIndex !== 2;
+  const routeBActive = state.routeIndex === 2;
+  const swipeDetected = active && detectedGesture === "Swipe";
+  const tapDetected = active && (detectedGesture === "Zeigen/Tippen" || detectedGesture === "Zeigen / Tippen");
+  const thumbDetected = active && detectedGesture === "Daumen hoch";
+
+  return (
+    <div className={`widget-card navigation-widget ${active ? "active" : ""} ${isGesture ? "gesture" : isCombined ? "combined" : "voice"}`}>
+      <div className="navigation-widget-main">
+        <div className="navigation-widget-header">
+          <span className="eyebrow navigation-widget-title">Navigation</span>
+          {active && <span className="widget-mini-badge">{isCombined ? "Voice + Geste" : isGesture ? "Geste" : "Voice"}</span>}
+        </div>
+
+        {isGesture ? (
+          <div className="navigation-route-list" aria-label="Routenauswahl">
+            <div className={`navigation-route-row ${routeAActive ? "selected" : ""}`}>
+              <span>Route A</span>
+              <strong>24 min</strong>
+            </div>
+            <div className={`navigation-route-row ${routeBActive ? "selected" : ""}`}>
+              <span>Route B</span>
+              <strong>29 min</strong>
+            </div>
+          </div>
+        ) : isCombined ? (
+          <>
+            <div className="navigation-route-alert">Neue Route <strong>8 min schneller</strong></div>
+            <div className="navigation-mini-map" aria-hidden>
+              <span className="navigation-map-line primary" />
+              <span className="navigation-map-line secondary" />
+              <span className="navigation-map-pin start" />
+              <span className="navigation-map-pin end" />
+            </div>
+            <div className="navigation-action-row" aria-label="Navigationsentscheidung">
+              <button className="navigation-action accept" type="button">Annehmen</button>
+              <button className="navigation-action decline" type="button">Ablehnen</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="navigation-prompt-row">
+              <span className="navigation-icon" aria-hidden>⌖</span>
+              <strong>Navigation Route starten?</strong>
+            </div>
+            <div className="navigation-progress-row" aria-label={`Navigation ${progress}%`}>
+              <div className="navigation-progress-track">
+                <span style={{ width: `${progress}%` }} />
+              </div>
+              <em>{progress}%</em>
+            </div>
+            <button className="navigation-voice-action" type="button">Annehmen</button>
+          </>
+        )}
+      </div>
+
+      <div className="navigation-gesture-panel" aria-label="Navigationsgesten">
+        {isCombined ? (
+          <>
+            <span className={`navigation-gesture-chip accept ${thumbDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>👍</span>Daumen hoch</span>
+            <span className={`navigation-gesture-chip reject ${swipeDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>↔</span>Swipe</span>
+          </>
+        ) : isGesture ? (
+          <>
+            <span className={`navigation-gesture-chip ${swipeDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>↔</span>Swipe</span>
+            <span className={`navigation-gesture-chip ${tapDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>⌾</span>Tippen</span>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CallWidget({
+  active,
+  state,
+  condition,
+  detectedGesture,
+}: {
+  active: boolean;
+  state: CockpitState;
+  condition?: string | null;
+  detectedGesture?: string | null;
+}) {
+  const isCombined = condition === "CAN use both";
+  const callStatus = state.callIncoming ? "Eingehend" : state.callActive ? "Aktiv" : "Mobil";
+  const progress = state.callActive ? Math.min(100, Math.max(30, state.volume)) : 60;
+  const thumbDetected = active && detectedGesture === "Daumen hoch";
+  const rotateDetected = active && detectedGesture === "Handgelenk drehen";
+
+  return (
+    <div className={`widget-card call-widget ${active ? "active" : ""} ${isCombined ? "combined" : "voice"}`}>
+      <div className="call-widget-main">
+        <div className="call-widget-header">
+          <span className="eyebrow call-widget-title">{state.callIncoming ? "Eingehender Anruf" : "Anruf"}</span>
+          {active && <span className="widget-mini-badge">{isCombined ? "Voice + Geste" : "Voice"}</span>}
+        </div>
+
+        <div className="call-info-row">
+          <span className="call-phone-circle" aria-hidden>☎</span>
+          <div className="call-copy">
+            <strong>Max Mustermann</strong>
+            <span>{callStatus}</span>
+          </div>
+        </div>
+
+        {isCombined && (
+          <div className="call-progress-row" aria-label={`Anrufpegel ${progress}%`}>
+            <div className="call-progress-track">
+              <span style={{ width: `${progress}%` }} />
+            </div>
+            <em>{progress}%</em>
+          </div>
+        )}
+      </div>
+
+      {isCombined ? (
+        <div className="call-gesture-panel" aria-label="Anrufgesten">
+          <span className={`call-gesture-chip ${thumbDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>👍</span>Daumen hoch</span>
+          <span className={`call-gesture-chip ${rotateDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>↻</span>Drehen</span>
+        </div>
+      ) : (
+        <div className="call-action-row" aria-label="Anrufaktionen">
+          <button className="call-action-button accept" type="button">Annehmen</button>
+          <button className="call-action-button decline" type="button">Ablehnen</button>
+        </div>
+      )}
     </div>
   );
 }
