@@ -69,6 +69,9 @@ function App() {
   const payload = state.activePayload;
   const guidance = useMemo(() => guidanceFor(payload), [payload]);
   const activeDomain = payload?.domain !== "unknown" ? payload?.domain : undefined;
+  const detectedGesture = payload?.source?.gesture_event?.gesture_label ?? undefined;
+  const detectedGestureConfidence = payload?.source?.gesture_event?.confidence ?? undefined;
+  const usedModalities = payload?.source?.used_modalities;
   const stepLabel = payload && typeof payload.step_index === "number" && payload.step_count
     ? `${(payload.step_index ?? 0) + 1}/${payload.step_count}`
     : "";
@@ -100,7 +103,14 @@ function App() {
         </MapPanel>
 
         <aside className="sidebar">
-          <SideWidgets activeDomain={activeDomain} state={state} />
+          <SideWidgets
+            activeDomain={activeDomain}
+            state={state}
+            detectedGesture={detectedGesture}
+            detectedGestureConfidence={detectedGestureConfidence}
+            usedModalities={usedModalities}
+            condition={payload?.condition}
+          />
         </aside>
       </div>
 
@@ -151,12 +161,33 @@ function MapPanel({ children }: { children?: React.ReactNode }) {
   );
 }
 
-function SideWidgets({ activeDomain, state }: { activeDomain?: Domain; state: CockpitState }) {
+function SideWidgets({
+  activeDomain,
+  state,
+  detectedGesture,
+  detectedGestureConfidence,
+  usedModalities,
+  condition,
+}: {
+  activeDomain?: Domain;
+  state: CockpitState;
+  detectedGesture?: string | null;
+  detectedGestureConfidence?: number | null;
+  usedModalities?: string;
+  condition?: string | null;
+}) {
   return (
     <div className="side-widgets">
       <MusicWidget active={activeDomain === "audio"} state={state} />
       <MessageWidget active={activeDomain === "messages"} state={state} />
-      <AmbientWidget state={state} />
+      <AmbientWidget
+        state={state}
+        isActive={activeDomain === "ambient_light"}
+        detectedGesture={detectedGesture}
+        detectedGestureConfidence={detectedGestureConfidence}
+        usedModalities={usedModalities}
+        condition={condition}
+      />
       <ClimateWidget state={state} />
     </div>
   );
@@ -230,16 +261,40 @@ function MessageWidget({ active, state }: { active: boolean; state: CockpitState
   );
 }
 
-function AmbientWidget({ state }: { state: CockpitState }) {
+function AmbientWidget({
+  state,
+  isActive,
+  detectedGesture,
+  detectedGestureConfidence,
+  usedModalities,
+  condition,
+}: {
+  state: CockpitState;
+  isActive: boolean;
+  detectedGesture?: string | null;
+  detectedGestureConfidence?: number | null;
+  usedModalities?: string;
+  condition?: string | null;
+}) {
   const brightness = Math.max(0, Math.min(100, state.ambientBrightness));
   const colorPosition = state.ambientColor === "Warm" ? 18 : state.ambientColor === "Blau" ? 70 : 45;
-  const condition = state.activePayload?.condition;
   const isCombined = condition === "CAN use both";
+  const gestureDetected = isActive && (detectedGesture === "Swipe" || detectedGesture === "Handgelenk drehen");
+  const confidenceLabel = typeof detectedGestureConfidence === "number"
+    ? `${Math.round(detectedGestureConfidence * 100)}%`
+    : "";
 
   return (
-    <div className={`widget-card ambient-widget ${isCombined ? "combined" : "gesture"}`}>
+    <div className={`widget-card ambient-widget ${isCombined ? "combined" : "gesture"} ${isActive ? "ambient-widget--active" : ""} ${gestureDetected ? "ambient-widget--gesture-detected" : ""}`}>
       <div className="ambient-widget-main">
-        <span className="eyebrow ambient-widget-title">Ambientebeleuchtung</span>
+        <div className="ambient-widget-header">
+          <span className="eyebrow ambient-widget-title">Ambientebeleuchtung</span>
+          {gestureDetected ? (
+            <span className="ambient-status-badge detected">Geste erkannt</span>
+          ) : isActive ? (
+            <span className="ambient-status-badge">Aktiv</span>
+          ) : null}
+        </div>
 
         <div className="ambient-slider-panel">
           <div className="ambient-slider-row" aria-label={`Farbe ${state.ambientColor}`}>
@@ -256,11 +311,18 @@ function AmbientWidget({ state }: { state: CockpitState }) {
             </div>
           </div>
         </div>
+
+        {gestureDetected && (
+          <div className="ambient-detected-readout">
+            <strong>{detectedGesture}</strong>
+            <span>{[usedModalities, confidenceLabel].filter(Boolean).join(" · ")}</span>
+          </div>
+        )}
       </div>
 
       <div className="ambient-gesture-panel" aria-label="Gesten">
-        <span className="ambient-gesture-chip"><span aria-hidden>↔</span>Swipe</span>
-        <span className="ambient-gesture-chip"><span aria-hidden>↻</span>Drehen</span>
+        <span className={`ambient-gesture-chip ${gestureDetected && detectedGesture === "Swipe" ? "gesture-chip--detected" : ""}`}><span aria-hidden>↔</span>Swipe</span>
+        <span className={`ambient-gesture-chip ${gestureDetected && detectedGesture === "Handgelenk drehen" ? "gesture-chip--detected" : ""}`}><span aria-hidden>↻</span>Drehen</span>
       </div>
     </div>
   );
@@ -326,6 +388,11 @@ function BottomControls({ state }: { state: CockpitState }) {
 
 function InteractionPopup({ payload, state }: { payload: WidgetPayload | null; state: CockpitState }) {
   if (!payload) return null;
+
+  if (payload.domain === "ambient_light") {
+    return <AmbientPopupWidget payload={payload} state={state} />;
+  }
+
   const title = payload.overlay_title || payload.scenario_prompt || "Interaktion";
   const body = payload.overlay_body || payload.prompt || "";
   return (
@@ -333,7 +400,7 @@ function InteractionPopup({ payload, state }: { payload: WidgetPayload | null; s
       <div className="popup-card">
         <div className="popup-header">
           <div className="popup-left">
-            <div className="popup-meta"><Icon name={payload.domain === "calls" ? "phone" : payload.domain === "navigation" ? "nav" : payload.domain === "audio" ? "music" : payload.domain === "messages" ? "msg" : payload.domain === "ambient_light" ? "light" : "climate"} />
+            <div className="popup-meta"><Icon name={payload.domain === "calls" ? "phone" : payload.domain === "navigation" ? "nav" : payload.domain === "audio" ? "music" : payload.domain === "messages" ? "msg" : payload.domain === "climate" ? "climate" : "light"} />
               <div>
                 <span className="eyebrow">{payload.domain}</span>
                 <strong className="popup-title">{title}</strong>
@@ -350,6 +417,77 @@ function InteractionPopup({ payload, state }: { payload: WidgetPayload | null; s
           <span className="muted">Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AmbientPopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
+  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const usedModalities = payload.source?.used_modalities;
+  const isSwipe = gestureLabel === "Swipe";
+  const isRotate = gestureLabel === "Handgelenk drehen";
+  const isConfirmed = payload.decision === "execute" || gestureLabel === "Daumen hoch";
+  const brightness = Math.max(0, Math.min(100, state.ambientBrightness));
+  const colorPosition = isSwipe ? 72 : state.ambientColor === "Warm" ? 18 : state.ambientColor === "Blau" ? 70 : 45;
+  const brightnessPosition = isRotate ? Math.min(100, brightness + 18) : brightness;
+  const statusText = isConfirmed
+    ? "Ambientebeleuchtung aktualisiert"
+    : isSwipe
+      ? "Swipe erkannt"
+      : isRotate
+        ? "Drehen erkannt"
+        : "Warte auf Geste";
+
+  return (
+    <div className={`interaction-popup ambient-popup-shell ${payload.event_type || ""}`}>
+      <section className={`ambient-popup-card ${isConfirmed ? "ambient-popup-card--confirmed" : isSwipe || isRotate ? "ambient-popup-card--detected" : ""}`}>
+        <div className="ambient-popup-header">
+          <div>
+            <span className="eyebrow ambient-popup-eyebrow">Ambientebeleuchtung</span>
+            <h2>{statusText}</h2>
+          </div>
+          <span className={`ambient-popup-state ${isConfirmed ? "confirmed" : isSwipe || isRotate ? "detected" : ""}`}>
+            {isConfirmed ? "Ausgeführt" : isSwipe || isRotate ? "Geste erkannt" : "Aktiv"}
+          </span>
+        </div>
+
+        <div className="ambient-popup-content">
+          <div className="ambient-popup-preview" aria-hidden>
+            <div className="ambient-popup-glow" />
+            <div className="ambient-popup-lamp">
+              <span />
+            </div>
+          </div>
+
+          <div className="ambient-popup-controls">
+            <div className="ambient-popup-slider-row" aria-label={`Farbe ${state.ambientColor}`}>
+              <span>Farbe</span>
+              <div className="ambient-popup-slider rgb">
+                <span className="ambient-popup-slider-handle" style={{ left: `${colorPosition}%` }} />
+              </div>
+            </div>
+
+            <div className="ambient-popup-slider-row" aria-label={`Helligkeit ${brightnessPosition}%`}>
+              <span>Helligkeit</span>
+              <div className="ambient-popup-slider brightness">
+                <span className="ambient-popup-slider-fill" style={{ width: `${brightnessPosition}%` }} />
+                <span className="ambient-popup-slider-handle" style={{ left: `${brightnessPosition}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="ambient-popup-gesture-row" aria-label="Erwartete Gesten">
+          <span className={`ambient-popup-chip ${isSwipe ? "gesture-chip--detected" : ""}`}><span aria-hidden>↔</span>Swipe</span>
+          <span className={`ambient-popup-chip ${isRotate ? "gesture-chip--detected" : ""}`}><span aria-hidden>↻</span>Drehen</span>
+        </div>
+
+        <footer className="ambient-popup-footer">
+          <span>Erwartet: {payload.expected_gesture ?? "-"}</span>
+          {usedModalities && <span>{usedModalities}</span>}
+          {payload.condition && <span>{payload.condition}</span>}
+        </footer>
+      </section>
     </div>
   );
 }

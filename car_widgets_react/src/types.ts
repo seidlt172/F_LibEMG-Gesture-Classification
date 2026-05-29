@@ -3,6 +3,18 @@ export type Decision = "execute" | "cancel" | "clarify";
 export type Domain = "calls" | "navigation" | "audio" | "messages" | "ambient_light" | "climate";
 export type WidgetEventType = "scenario_start" | "step_update" | "trial_completed";
 
+export interface GestureEventPayload {
+  gesture_label?: string | null;
+  gesture_id?: number | null;
+  confidence?: number | null;
+  source?: string;
+}
+
+export interface WidgetPayloadSource {
+  gesture_event?: GestureEventPayload | null;
+  used_modalities?: string;
+}
+
 export interface WidgetPayload {
   event_type?: WidgetEventType;
   trial_id?: string;
@@ -33,6 +45,7 @@ export interface WidgetPayload {
   value?: string | null;
   clarification?: string;
   success?: boolean;
+  source?: WidgetPayloadSource;
 }
 
 export interface LatestResponse {
