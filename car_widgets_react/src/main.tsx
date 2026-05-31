@@ -12,10 +12,27 @@ type PreviewScenario =
   | "ambient-rotate"
   | "ambient-confirmed"
   | "call-incoming"
+  | "call-accepted"
   | "navigation-route"
+  | "navigation-accepted"
+  | "navigation-declined"
+  | "navigation-selected"
+  | "navigation-clarify"
   | "music-suggestion"
+  | "audio-playing"
+  | "audio-skipped"
+  | "audio-volume"
+  | "audio-clarify"
   | "message-open"
-  | "climate-seat";
+  | "message-opened"
+  | "message-closed"
+  | "message-confirmed"
+  | "message-clarify"
+  | "climate-seat"
+  | "climate-adjusting"
+  | "climate-confirmed"
+  | "climate-cancelled"
+  | "climate-clarify";
 
 interface CockpitState {
   activePayload: WidgetPayload | null;
@@ -161,10 +178,27 @@ function PreviewScenarioControl({
         <option value="ambient-rotate">Ambient · Drehen detected</option>
         <option value="ambient-confirmed">Ambient · Confirmed</option>
         <option value="call-incoming">Call · Incoming</option>
+        <option value="call-accepted">Call · Accepted</option>
         <option value="navigation-route">Navigation · Route suggestion</option>
-        <option value="music-suggestion">Music · Suggestion</option>
-        <option value="message-open">Message · Open message</option>
+        <option value="navigation-accepted">Navigation · Accepted</option>
+        <option value="navigation-declined">Navigation · Declined</option>
+        <option value="navigation-selected">Navigation · Selected</option>
+        <option value="navigation-clarify">Navigation · Clarify</option>
+        <option value="music-suggestion">Audio · Music suggestion</option>
+        <option value="audio-playing">Audio · Playing</option>
+        <option value="audio-skipped">Audio · Skipped</option>
+        <option value="audio-volume">Audio · Volume adjusted</option>
+        <option value="audio-clarify">Audio · Clarify</option>
+        <option value="message-open">Message · New</option>
+        <option value="message-opened">Message · Opened</option>
+        <option value="message-closed">Message · Closed</option>
+        <option value="message-confirmed">Message · Confirmed</option>
+        <option value="message-clarify">Message · Clarify</option>
         <option value="climate-seat">Climate · Seat heating</option>
+        <option value="climate-adjusting">Climate · Adjusting</option>
+        <option value="climate-confirmed">Climate · Confirmed</option>
+        <option value="climate-cancelled">Climate · Cancelled</option>
+        <option value="climate-clarify">Climate · Clarify</option>
       </select>
     </label>
   );
@@ -264,6 +298,20 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         task_id: "CALL-INCOMING",
         source: { used_modalities: "voice" },
       };
+    case "call-accepted":
+      return {
+        ...basePayload,
+        domain: "calls",
+        condition: "Voice only",
+        decision: "execute",
+        prompt: "Anruf wurde angenommen.",
+        overlay_title: "Eingehender Anruf",
+        overlay_body: "Max Mustermann ruft an.",
+        accepted_text: "Der Anruf wurde angenommen.",
+        expected_voice: "Annehmen",
+        task_id: "CALL-INCOMING",
+        source: { used_modalities: "voice" },
+      };
     case "navigation-route":
       return {
         ...basePayload,
@@ -272,6 +320,88 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         prompt: "Neue Route ist 8 Minuten schneller.",
         overlay_title: "Navigation",
         overlay_body: "Route vorschlagen.",
+        expected_gesture: "Daumen hoch",
+        expected_voice: "Annehmen",
+        task_id: "NAV-ACCEPT-ROUTE",
+        source: { used_modalities: "voice+gesture" },
+      };
+    case "navigation-accepted":
+      return {
+        ...basePayload,
+        domain: "navigation",
+        condition: "CAN use both",
+        decision: "execute",
+        prompt: "Route wurde uebernommen.",
+        overlay_title: "Route vorgeschlagen",
+        overlay_body: "Neue Route verfuegbar.",
+        accepted_text: "Route uebernommen",
+        expected_gesture: "Daumen hoch",
+        expected_voice: "Annehmen",
+        task_id: "NAV-ACCEPT-ROUTE",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Daumen hoch",
+            gesture_id: 1,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "navigation-declined":
+      return {
+        ...basePayload,
+        domain: "navigation",
+        condition: "CAN use both",
+        decision: "cancel",
+        prompt: "Route wurde abgelehnt.",
+        overlay_title: "Route vorgeschlagen",
+        overlay_body: "Neue Route verfuegbar.",
+        rejected_text: "Route abgelehnt",
+        expected_gesture: "Swipe",
+        expected_voice: "Ablehnen",
+        task_id: "NAV-REJECT-ROUTE",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Swipe",
+            gesture_id: 2,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "navigation-selected":
+      return {
+        ...basePayload,
+        domain: "navigation",
+        condition: "Gesture only",
+        prompt: "Zweite Route auswaehlen.",
+        overlay_title: "Route vorgeschlagen",
+        overlay_body: "Alternative Route verfuegbar.",
+        accepted_text: "Route ausgewaehlt",
+        expected_gesture: "Zeigen/Tippen",
+        task_id: "NAV-SELECT-SECOND",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Zeigen/Tippen",
+            gesture_id: 4,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "navigation-clarify":
+      return {
+        ...basePayload,
+        domain: "navigation",
+        condition: "CAN use both",
+        decision: "clarify",
+        prompt: "Bitte Navigationsauswahl wiederholen.",
+        overlay_title: "Navigation",
+        overlay_body: "Eingabe unklar.",
+        unclear_text: "Bitte Route bestaetigen oder ablehnen.",
         expected_gesture: "Daumen hoch",
         expected_voice: "Annehmen",
         task_id: "NAV-ACCEPT-ROUTE",
@@ -289,6 +419,87 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         task_id: "AUDIO-SUGGESTION",
         source: { used_modalities: "voice" },
       };
+    case "audio-playing":
+      return {
+        ...basePayload,
+        domain: "audio",
+        condition: "CAN use both",
+        decision: "execute",
+        prompt: "Wiedergabe gestartet.",
+        overlay_title: "Musik",
+        overlay_body: "Night Drive abspielen?",
+        accepted_text: "Wiedergabe gestartet",
+        expected_gesture: "Daumen hoch",
+        expected_voice: "Abspielen",
+        task_id: "AUDIO-SUGGESTION",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Daumen hoch",
+            gesture_id: 1,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "audio-skipped":
+      return {
+        ...basePayload,
+        domain: "audio",
+        condition: "Gesture only",
+        decision: "cancel",
+        prompt: "Song uebersprungen.",
+        overlay_title: "Naechster Song",
+        overlay_body: "City Lights abspielen.",
+        rejected_text: "Song uebersprungen",
+        expected_gesture: "Swipe",
+        task_id: "AUDIO-NEXT",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Swipe",
+            gesture_id: 2,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "audio-volume":
+      return {
+        ...basePayload,
+        domain: "audio",
+        condition: "Gesture only",
+        prompt: "Lautstaerke angepasst.",
+        overlay_title: "Musik",
+        overlay_body: "Song lauter machen.",
+        accepted_text: "Lautstaerke angepasst",
+        expected_gesture: "Handgelenk drehen",
+        task_id: "AUDIO-LOUDER",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Handgelenk drehen",
+            gesture_id: 3,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "audio-clarify":
+      return {
+        ...basePayload,
+        domain: "audio",
+        condition: "CAN use both",
+        decision: "clarify",
+        prompt: "Bitte Musikauswahl wiederholen.",
+        overlay_title: "Musik",
+        overlay_body: "Eingabe unklar.",
+        unclear_text: "Bitte Abspielen, Weiter oder Lautstaerke wiederholen.",
+        expected_gesture: "Daumen hoch",
+        expected_voice: "Abspielen",
+        task_id: "AUDIO-SUGGESTION",
+        source: { used_modalities: "voice+gesture" },
+      };
     case "message-open":
       return {
         ...basePayload,
@@ -301,6 +512,87 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         task_id: "MESSAGE-OPEN",
         source: { used_modalities: "voice" },
       };
+    case "message-opened":
+      return {
+        ...basePayload,
+        domain: "messages",
+        condition: "CAN use both",
+        decision: "execute",
+        prompt: "Nachricht geoeffnet.",
+        overlay_title: "Nachricht von Anna",
+        overlay_body: "Neue Nachricht von Anna.",
+        accepted_text: "Nachricht geoeffnet",
+        expected_gesture: "Zeigen/Tippen",
+        expected_voice: "Öffnen",
+        task_id: "MESSAGE-OPEN",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Zeigen/Tippen",
+            gesture_id: 4,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "message-closed":
+      return {
+        ...basePayload,
+        domain: "messages",
+        condition: "Gesture only",
+        decision: "cancel",
+        prompt: "Nachricht geschlossen.",
+        overlay_title: "Nachricht",
+        overlay_body: "Neue Nachricht von Anna.",
+        rejected_text: "Nachricht geschlossen",
+        expected_gesture: "Swipe",
+        task_id: "MESSAGE-CLOSE",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Swipe",
+            gesture_id: 2,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "message-confirmed":
+      return {
+        ...basePayload,
+        domain: "messages",
+        condition: "Gesture only",
+        prompt: "Nachricht bestaetigt.",
+        overlay_title: "Nachricht von Anna",
+        overlay_body: "Neue Nachricht von Anna.",
+        accepted_text: "Bestaetigt",
+        expected_gesture: "Daumen hoch",
+        task_id: "MESSAGE-OPEN",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Daumen hoch",
+            gesture_id: 1,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "message-clarify":
+      return {
+        ...basePayload,
+        domain: "messages",
+        condition: "CAN use both",
+        decision: "clarify",
+        prompt: "Bitte Nachrichteneingabe wiederholen.",
+        overlay_title: "Nachrichten",
+        overlay_body: "Eingabe unklar.",
+        unclear_text: "Soll die Nachricht geoeffnet oder geschlossen werden?",
+        expected_gesture: "Zeigen/Tippen",
+        expected_voice: "Öffnen",
+        task_id: "MESSAGE-OPEN",
+        source: { used_modalities: "voice+gesture" },
+      };
     case "climate-seat":
       return {
         ...basePayload,
@@ -312,6 +604,86 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         expected_gesture: "Handgelenk drehen",
         task_id: "CLIMATE-SEAT-WARMER",
         source: { used_modalities: "gesture" },
+      };
+    case "climate-adjusting":
+      return {
+        ...basePayload,
+        domain: "climate",
+        condition: "Gesture only",
+        prompt: "Sitzheizung angepasst.",
+        overlay_title: "Sitzheizung",
+        overlay_body: "Sitz 1 wird wärmer gestellt.",
+        accepted_text: "Sitzheizung angepasst",
+        expected_gesture: "Handgelenk drehen",
+        task_id: "CLIMATE-SEAT-WARMER",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Handgelenk drehen",
+            gesture_id: 3,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "climate-confirmed":
+      return {
+        ...basePayload,
+        domain: "climate",
+        condition: "Gesture only",
+        decision: "execute",
+        prompt: "Sitzheizung aktualisiert.",
+        overlay_title: "Sitzheizung",
+        overlay_body: "Sitz 1 ist wärmer eingestellt.",
+        accepted_text: "Sitzheizung aktualisiert",
+        expected_gesture: "Daumen hoch",
+        task_id: "CLIMATE-SEAT-WARMER",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Daumen hoch",
+            gesture_id: 1,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "climate-cancelled":
+      return {
+        ...basePayload,
+        domain: "climate",
+        condition: "Gesture only",
+        decision: "cancel",
+        prompt: "Änderung abgebrochen.",
+        overlay_title: "Sitzheizung",
+        overlay_body: "Die Sitzheizung bleibt unverändert.",
+        rejected_text: "Änderung abgebrochen",
+        expected_gesture: "Swipe",
+        task_id: "CLIMATE-SEAT-WARMER",
+        source: {
+          used_modalities: "gesture",
+          gesture_event: {
+            gesture_label: "Swipe",
+            gesture_id: 2,
+            source: "manual",
+            confidence: null,
+          },
+        },
+      };
+    case "climate-clarify":
+      return {
+        ...basePayload,
+        domain: "climate",
+        condition: "CAN use both",
+        decision: "clarify",
+        prompt: "Bitte Eingabe fuer Sitzheizung wiederholen.",
+        overlay_title: "Sitzheizung",
+        overlay_body: "Eingabe unklar.",
+        unclear_text: "Soll die Sitzheizung erhoeht werden?",
+        expected_gesture: "Handgelenk drehen",
+        expected_voice: "Waermer",
+        task_id: "CLIMATE-SEAT-WARMER",
+        source: { used_modalities: "voice+gesture" },
       };
     default:
       return null;
@@ -340,13 +712,47 @@ function createPreviewState(state: CockpitState, previewScenario: PreviewScenari
       return { ...previewState, ambientColor: "Warm", ambientBrightness: 70 };
     case "call-incoming":
       return { ...previewState, callIncoming: true, callActive: false };
+    case "call-accepted":
+      return { ...previewState, callIncoming: false, callActive: true };
     case "navigation-route":
+      return { ...previewState, routeActive: true, routeIndex: 1 };
+    case "navigation-accepted":
+      return { ...previewState, routeActive: true, routeIndex: 1 };
+    case "navigation-declined":
+      return { ...previewState, routeActive: false, routeIndex: 1 };
+    case "navigation-selected":
+      return { ...previewState, routeActive: true, routeIndex: 2 };
+    case "navigation-clarify":
       return { ...previewState, routeActive: true, routeIndex: 1 };
     case "music-suggestion":
       return { ...previewState, audioPlaying: true, track: "Night Drive" };
+    case "audio-playing":
+      return { ...previewState, audioPlaying: true, track: "Night Drive" };
+    case "audio-skipped":
+      return { ...previewState, audioPlaying: true, track: "City Lights" };
+    case "audio-volume":
+      return { ...previewState, audioPlaying: true, track: "Night Drive", volume: 72 };
+    case "audio-clarify":
+      return { ...previewState, audioPlaying: false, track: "Night Drive" };
     case "message-open":
+      return { ...previewState, messageOpen: false };
+    case "message-opened":
       return { ...previewState, messageOpen: true };
+    case "message-closed":
+      return { ...previewState, messageOpen: false };
+    case "message-confirmed":
+      return { ...previewState, messageOpen: true };
+    case "message-clarify":
+      return { ...previewState, messageOpen: false };
     case "climate-seat":
+      return { ...previewState, seatLevel: 2 };
+    case "climate-adjusting":
+      return { ...previewState, seatLevel: 3 };
+    case "climate-confirmed":
+      return { ...previewState, seatLevel: 3 };
+    case "climate-cancelled":
+      return { ...previewState, seatLevel: 1 };
+    case "climate-clarify":
       return { ...previewState, seatLevel: 2 };
     default:
       return previewState;
@@ -826,6 +1232,26 @@ function InteractionPopup({ payload, state }: { payload: WidgetPayload | null; s
     return <AmbientPopupWidget payload={payload} state={state} />;
   }
 
+  if (isCallDomain(payload.domain)) {
+    return <CallPopupWidget payload={payload} state={state} />;
+  }
+
+  if (isNavigationDomain(payload.domain)) {
+    return <NavigationPopupWidget payload={payload} state={state} />;
+  }
+
+  if (isAudioDomain(payload.domain)) {
+    return <AudioPopupWidget payload={payload} state={state} />;
+  }
+
+  if (isMessagesDomain(payload.domain)) {
+    return <MessagesPopupWidget payload={payload} state={state} />;
+  }
+
+  if (isClimateDomain(payload.domain)) {
+    return <ClimatePopupWidget payload={payload} state={state} />;
+  }
+
   const title = payload.overlay_title || payload.scenario_prompt || "Interaktion";
   const body = payload.overlay_body || payload.prompt || "";
   return (
@@ -850,6 +1276,592 @@ function InteractionPopup({ payload, state }: { payload: WidgetPayload | null; s
           <span className="muted">Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function isCallDomain(domain: WidgetPayload["domain"]): boolean {
+  return domain === "calls" || String(domain) === "call";
+}
+
+function isNavigationDomain(domain: WidgetPayload["domain"]): boolean {
+  return domain === "navigation" || String(domain) === "nav";
+}
+
+function isAudioDomain(domain: WidgetPayload["domain"]): boolean {
+  return domain === "audio" || String(domain) === "music" || String(domain) === "media";
+}
+
+function isMessagesDomain(domain: WidgetPayload["domain"]): boolean {
+  return domain === "messages" || String(domain) === "message";
+}
+
+function isClimateDomain(domain: WidgetPayload["domain"]): boolean {
+  return domain === "climate" || String(domain) === "seat_heating" || String(domain) === "seat-heating";
+}
+
+function CallPopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
+  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const usedModalities = payload.source?.used_modalities;
+  const intentText = `${payload.intent ?? ""} ${payload.action ?? ""} ${payload.target ?? ""}`.toLowerCase();
+  const isClarify = payload.decision === "clarify";
+  const isAccepted = !isClarify && (
+    gestureLabel === "Daumen hoch" ||
+    payload.decision === "execute" ||
+    intentText.includes("accept")
+  );
+  const isDeclined = !isClarify && (
+    gestureLabel === "Swipe" ||
+    payload.decision === "cancel" ||
+    intentText.includes("reject") ||
+    intentText.includes("decline")
+  );
+  const isGestureMode = payload.condition !== "Voice only" || Boolean(payload.expected_gesture) || Boolean(usedModalities?.includes("gesture"));
+  const stageClass = isClarify
+    ? "call-popup--clarify"
+    : isAccepted
+      ? "call-popup--accepted"
+      : isDeclined
+        ? "call-popup--declined"
+        : "call-popup--incoming";
+  const badgeText = isClarify
+    ? "Klaeren"
+    : isAccepted
+      ? "Angenommen"
+      : isDeclined
+        ? "Abgelehnt"
+      : isGestureMode
+        ? "Anruf"
+        : "Aktiv";
+  const title = isClarify
+    ? "Eingabe klaeren"
+    : isAccepted
+      ? "Anruf angenommen"
+      : isDeclined
+        ? "Anruf abgelehnt"
+        : payload.overlay_title || "Eingehender Anruf";
+  const body = isClarify
+    ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    : isAccepted
+      ? payload.accepted_text || "Anruf angenommen"
+      : isDeclined
+        ? payload.rejected_text || "Anruf abgelehnt"
+        : payload.overlay_body || payload.prompt || "Max Mustermann ruft an.";
+  const callStatus = isAccepted ? "Verbunden" : isDeclined ? "Beendet" : "Eingehend";
+
+  return (
+    <div className={`interaction-popup call-popup-shell ${payload.event_type || ""}`}>
+      <section className={`call-popup ${stageClass}`}>
+        <div className="call-popup__header">
+          <div>
+            <span className="eyebrow call-popup__eyebrow">Anruf</span>
+            <h2>{title}</h2>
+          </div>
+          <span className="call-popup__badge">{badgeText}</span>
+        </div>
+
+        <div className="call-popup__content">
+          <div className="call-popup__avatar" aria-hidden>
+            <span>☎</span>
+          </div>
+
+          <div className="call-popup__details">
+            <span className="call-popup__label">Max Mustermann</span>
+            <strong>{callStatus}</strong>
+            <p>{body}</p>
+          </div>
+        </div>
+
+        {isAccepted ? (
+          <div className="call-popup__actions call-popup__actions--connected" aria-label="Anrufstatus">
+            <span className="call-popup__success-pill">Verbunden</span>
+            <button className="call-popup__button call-popup__button--hangup" type="button">
+              Auflegen
+            </button>
+          </div>
+        ) : isGestureMode ? (
+          <div className="call-popup__actions" aria-label="Anrufgesten">
+            <span className={`call-popup__chip call-popup__chip--accept ${isAccepted ? "call-popup__chip--active" : ""}`}>
+              <span aria-hidden>👍</span>Daumen hoch
+            </span>
+            <span className={`call-popup__chip call-popup__chip--decline ${isDeclined ? "call-popup__chip--active" : ""}`}>
+              <span aria-hidden>↔</span>Swipe
+            </span>
+          </div>
+        ) : (
+          <div className="call-popup__actions" aria-label="Anrufaktionen">
+            <button className={`call-popup__button call-popup__button--accept ${isAccepted ? "call-popup__button--active" : ""}`} type="button">
+              Annehmen
+            </button>
+            <button className={`call-popup__button call-popup__button--decline ${isDeclined ? "call-popup__button--active" : ""}`} type="button">
+              Ablehnen
+            </button>
+          </div>
+        )}
+
+        <footer className="call-popup__footer">
+          <span>Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
+          {usedModalities && <span>{usedModalities}</span>}
+          {payload.condition && <span>{payload.condition}</span>}
+          {isAccepted && <span>Naechste Aktion: Auflegen</span>}
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function NavigationPopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
+  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const usedModalities = payload.source?.used_modalities;
+  const isClarify = payload.decision === "clarify";
+  const isAccepted = !isClarify && (gestureLabel === "Daumen hoch" || payload.decision === "execute");
+  const isDeclined = !isClarify && (gestureLabel === "Swipe" || payload.decision === "cancel");
+  const isSelected = !isClarify && gestureLabel === "Zeigen/Tippen";
+  const isGestureMode = payload.condition !== "Voice only" || Boolean(payload.expected_gesture) || Boolean(usedModalities?.includes("gesture"));
+  const routeName = isSelected
+    ? "Alternative Route"
+    : isAccepted
+      ? "Schnellere Route"
+      : isDeclined
+        ? "Route abgelehnt"
+        : "Schnellere Route";
+  const stageClass = isClarify
+    ? "navigation-popup--clarify"
+    : isAccepted
+      ? "navigation-popup--accepted"
+      : isDeclined
+        ? "navigation-popup--declined"
+        : isSelected
+          ? "navigation-popup--selected"
+          : "navigation-popup--suggested";
+  const badgeText = isClarify
+    ? "Klaerung"
+    : isAccepted
+      ? "Ausgewaehlt"
+      : isDeclined
+        ? "Route"
+        : isSelected
+          ? "Ausgewaehlt"
+          : "Aktiv";
+  const title = isClarify
+    ? "Navigation klaeren"
+    : isAccepted
+      ? "Route uebernommen"
+      : isDeclined
+        ? "Route abgelehnt"
+        : isSelected
+          ? "Route ausgewaehlt"
+          : payload.overlay_title || "Route vorgeschlagen";
+  const body = isClarify
+    ? payload.unclear_text || payload.prompt || "Bitte Auswahl wiederholen."
+    : isAccepted
+      ? payload.accepted_text || "Route uebernommen"
+      : isDeclined
+        ? payload.rejected_text || "Route abgelehnt"
+        : isSelected
+          ? payload.accepted_text || "Route ausgewaehlt"
+          : payload.overlay_body || payload.prompt || "Neue Route verfuegbar.";
+
+  return (
+    <div className={`interaction-popup navigation-popup-shell ${payload.event_type || ""}`}>
+      <section className={`navigation-popup ${stageClass}`}>
+        <div className="navigation-popup__header">
+          <div>
+            <span className="eyebrow navigation-popup__eyebrow">Navigation</span>
+            <h2>{title}</h2>
+          </div>
+          <span className="navigation-popup__badge">{badgeText}</span>
+        </div>
+
+        <div className="navigation-popup__content">
+          <div className="navigation-popup__route-preview" aria-hidden>
+            <span className="navigation-popup__route-line navigation-popup__route-line--primary" />
+            <span className="navigation-popup__route-line navigation-popup__route-line--secondary" />
+            <span className="navigation-popup__pin navigation-popup__pin--start" />
+            <span className="navigation-popup__pin navigation-popup__pin--end" />
+          </div>
+
+          <div className="navigation-popup__details">
+            <span className="navigation-popup__label">{routeName}</span>
+            <strong>{body}</strong>
+            <div className="navigation-popup__meta" aria-label="Routendetails">
+              <span>12 min</span>
+              <span>4.2 km</span>
+              <span>8 min schneller</span>
+            </div>
+          </div>
+        </div>
+
+        {isGestureMode ? (
+          <div className="navigation-popup__actions" aria-label="Navigationsgesten">
+            <span className={`navigation-popup__chip navigation-popup__chip--accept ${isAccepted ? "navigation-popup__chip--active" : ""}`}>
+              <span aria-hidden>👍</span>Daumen hoch
+            </span>
+            <span className={`navigation-popup__chip navigation-popup__chip--decline ${isDeclined ? "navigation-popup__chip--active" : ""}`}>
+              <span aria-hidden>↔</span>Swipe
+            </span>
+            <span className={`navigation-popup__chip navigation-popup__chip--select ${isSelected ? "navigation-popup__chip--active" : ""}`}>
+              <span aria-hidden>⌾</span>Zeigen/Tippen
+            </span>
+          </div>
+        ) : (
+          <div className="navigation-popup__actions" aria-label="Navigationsentscheidung">
+            <button className={`navigation-popup__button navigation-popup__button--accept ${isAccepted ? "navigation-popup__button--active" : ""}`} type="button">
+              Annehmen
+            </button>
+            <button className={`navigation-popup__button navigation-popup__button--decline ${isDeclined ? "navigation-popup__button--active" : ""}`} type="button">
+              Ablehnen
+            </button>
+          </div>
+        )}
+
+        <footer className="navigation-popup__footer">
+          <span>Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
+          {usedModalities && <span>{usedModalities}</span>}
+          {payload.condition && <span>{payload.condition}</span>}
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function AudioPopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
+  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const usedModalities = payload.source?.used_modalities;
+  const isClarify = payload.decision === "clarify";
+  const isPlaying = !isClarify && (gestureLabel === "Daumen hoch" || payload.decision === "execute");
+  const isSkipped = !isClarify && (gestureLabel === "Swipe" || payload.decision === "cancel");
+  const isVolume = !isClarify && gestureLabel === "Handgelenk drehen";
+  const isGestureMode = payload.condition !== "Voice only" || Boolean(payload.expected_gesture) || Boolean(usedModalities?.includes("gesture"));
+  const volume = Math.max(0, Math.min(100, isVolume ? Math.max(state.volume, 72) : state.volume));
+  const progress = isSkipped ? 18 : isPlaying ? 48 : 32;
+  const trackTitle = state.track || "Night Drive";
+  const stageClass = isClarify
+    ? "audio-popup--clarify"
+    : isVolume
+      ? "audio-popup--volume"
+      : isSkipped
+        ? "audio-popup--skipped"
+        : isPlaying
+          ? "audio-popup--playing"
+          : "audio-popup--suggested";
+  const badgeText = isClarify
+    ? "Klaerung"
+    : isVolume
+      ? "Lautstaerke"
+      : isSkipped
+        ? "Uebersprungen"
+        : isPlaying
+          ? "Spielt"
+          : "Vorschlag";
+  const title = isClarify
+    ? "Musik klaeren"
+    : isVolume
+      ? "Lautstaerke angepasst"
+      : isSkipped
+        ? "Naechster Song"
+        : isPlaying
+          ? "Wiedergabe gestartet"
+          : payload.overlay_title || "Musikvorschlag";
+  const body = isClarify
+    ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    : isVolume
+      ? payload.accepted_text || "Lautstaerke angepasst"
+      : isSkipped
+        ? payload.rejected_text || "Song uebersprungen"
+        : isPlaying
+          ? payload.accepted_text || "Wiedergabe gestartet"
+          : payload.overlay_body || payload.prompt || "Night Drive abspielen?";
+  const metaText = isVolume ? `${volume}% Lautstaerke` : isPlaying ? "Spielt" : isSkipped ? "Weiter" : "Vorgeschlagen";
+
+  return (
+    <div className={`interaction-popup audio-popup-shell ${payload.event_type || ""}`}>
+      <section className={`audio-popup ${stageClass}`}>
+        <div className="audio-popup__header">
+          <div>
+            <span className="eyebrow audio-popup__eyebrow">Audio</span>
+            <h2>{title}</h2>
+          </div>
+          <span className="audio-popup__badge">{badgeText}</span>
+        </div>
+
+        <div className="audio-popup__content">
+          <div className="audio-popup__artwork" aria-hidden>
+            <span>ND</span>
+          </div>
+
+          <div className="audio-popup__details">
+            <span className="audio-popup__label">{metaText}</span>
+            <strong className="audio-popup__track">{trackTitle}</strong>
+            <p>{body}</p>
+            <div className={`audio-popup__progress ${isVolume ? "audio-popup__progress--volume" : ""}`} aria-label={isVolume ? `Lautstaerke ${volume}%` : `Wiedergabe ${progress}%`}>
+              <span style={{ width: `${isVolume ? volume : progress}%` }} />
+            </div>
+            <div className="audio-popup__controls" aria-label="Musiksteuerung">
+              <span aria-hidden>‹‹</span>
+              <span aria-hidden>{state.audioPlaying || isPlaying ? "Ⅱ" : "▶"}</span>
+              <span aria-hidden>››</span>
+            </div>
+          </div>
+        </div>
+
+        {isGestureMode ? (
+          <div className="audio-popup__actions" aria-label="Audiogesten">
+            <span className={`audio-popup__chip audio-popup__chip--accept ${isPlaying ? "audio-popup__chip--active" : ""}`}>
+              <span aria-hidden>👍</span>Daumen hoch
+            </span>
+            <span className={`audio-popup__chip audio-popup__chip--decline ${isSkipped ? "audio-popup__chip--active" : ""}`}>
+              <span aria-hidden>↔</span>Swipe
+            </span>
+            <span className={`audio-popup__chip audio-popup__chip--volume ${isVolume ? "audio-popup__chip--active" : ""}`}>
+              <span aria-hidden>↻</span>Drehen
+            </span>
+          </div>
+        ) : (
+          <div className="audio-popup__actions" aria-label="Audioaktionen">
+            <button className={`audio-popup__button audio-popup__button--accept ${isPlaying ? "audio-popup__button--active" : ""}`} type="button">
+              Annehmen
+            </button>
+            <button className={`audio-popup__button audio-popup__button--decline ${isSkipped ? "audio-popup__button--active" : ""}`} type="button">
+              Ablehnen
+            </button>
+          </div>
+        )}
+
+        <footer className="audio-popup__footer">
+          <span>Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
+          {usedModalities && <span>{usedModalities}</span>}
+          {payload.condition && <span>{payload.condition}</span>}
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function MessagesPopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
+  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const usedModalities = payload.source?.used_modalities;
+  const isClarify = payload.decision === "clarify";
+  const isConfirmed = !isClarify && gestureLabel === "Daumen hoch";
+  const isOpened = !isClarify && !isConfirmed && (gestureLabel === "Zeigen/Tippen" || payload.decision === "execute");
+  const isClosed = !isClarify && (gestureLabel === "Swipe" || payload.decision === "cancel");
+  const isGestureMode = payload.condition !== "Voice only" || Boolean(payload.expected_gesture) || Boolean(usedModalities?.includes("gesture"));
+  const stageClass = isClarify
+    ? "messages-popup--clarify"
+    : isConfirmed
+      ? "messages-popup--confirmed"
+      : isOpened
+        ? "messages-popup--opened"
+        : isClosed
+          ? "messages-popup--closed"
+          : "messages-popup--new";
+  const badgeText = isClarify
+    ? "Klaerung"
+    : isConfirmed
+      ? "Bestaetigt"
+      : isOpened
+        ? "Geoeffnet"
+        : isClosed
+          ? "Geschlossen"
+          : "Neu";
+  const title = isClarify
+    ? "Nachricht klaeren"
+    : isConfirmed
+      ? "Bestaetigt"
+      : isOpened
+        ? "Nachricht geoeffnet"
+        : isClosed
+          ? "Nachricht geschlossen"
+          : payload.overlay_title || "Neue Nachricht";
+  const body = isClarify
+    ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    : isConfirmed
+      ? payload.accepted_text || "Bestaetigt"
+      : isOpened
+        ? payload.accepted_text || "Nachricht geoeffnet"
+        : isClosed
+          ? payload.rejected_text || "Nachricht geschlossen"
+          : payload.overlay_body || payload.prompt || "Neue Nachricht von Anna.";
+  const messageStatus = isClosed ? "Geschlossen" : isOpened ? "Geoeffnet" : isConfirmed ? "Bestaetigt" : "Neue Nachricht";
+
+  return (
+    <div className={`interaction-popup messages-popup-shell ${payload.event_type || ""}`}>
+      <section className={`messages-popup ${stageClass}`}>
+        <div className="messages-popup__header">
+          <div>
+            <span className="eyebrow messages-popup__eyebrow">Nachrichten</span>
+            <h2>{title}</h2>
+          </div>
+          <span className="messages-popup__badge">{badgeText}</span>
+        </div>
+
+        <div className="messages-popup__content">
+          <div className="messages-popup__icon" aria-hidden>
+            <span>✉</span>
+          </div>
+
+          <div className="messages-popup__preview">
+            <span className="messages-popup__sender">Von: <strong>Anna</strong></span>
+            <strong>{messageStatus}</strong>
+            <p className="messages-popup__text">{body}</p>
+          </div>
+        </div>
+
+        {isGestureMode ? (
+          <div className="messages-popup__actions" aria-label="Nachrichtengesten">
+            <span className={`messages-popup__chip messages-popup__chip--open ${isOpened ? "messages-popup__chip--active" : ""}`}>
+              <span aria-hidden>⌾</span>Zeigen/Tippen
+            </span>
+            <span className={`messages-popup__chip messages-popup__chip--close ${isClosed ? "messages-popup__chip--active" : ""}`}>
+              <span aria-hidden>↔</span>Swipe
+            </span>
+            <span className={`messages-popup__chip messages-popup__chip--confirm ${isConfirmed ? "messages-popup__chip--active" : ""}`}>
+              <span aria-hidden>👍</span>Daumen hoch
+            </span>
+          </div>
+        ) : (
+          <div className="messages-popup__actions" aria-label="Nachrichtenaktionen">
+            <button className={`messages-popup__button messages-popup__button--open ${isOpened ? "messages-popup__button--active" : ""}`} type="button">
+              Öffnen
+            </button>
+            <button className={`messages-popup__button messages-popup__button--close ${isClosed ? "messages-popup__button--active" : ""}`} type="button">
+              Schließen
+            </button>
+          </div>
+        )}
+
+        <footer className="messages-popup__footer">
+          <span>Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
+          {usedModalities && <span>{usedModalities}</span>}
+          {payload.condition && <span>{payload.condition}</span>}
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
+  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const usedModalities = payload.source?.used_modalities;
+  const isClarify = payload.decision === "clarify";
+  const isAdjusting = !isClarify && gestureLabel === "Handgelenk drehen";
+  const isSuccess = !isClarify && (gestureLabel === "Daumen hoch" || payload.decision === "execute");
+  const isCancelled = !isClarify && (gestureLabel === "Swipe" || payload.decision === "cancel");
+  const isGestureMode = payload.condition !== "Voice only" || Boolean(payload.expected_gesture) || Boolean(usedModalities?.includes("gesture"));
+  const seatOneLevel = Math.max(1, Math.min(3, isAdjusting || isSuccess ? Math.max(state.seatLevel, 2) : state.seatLevel));
+  const seatTwoLevel = 1;
+  const stageClass = isClarify
+    ? "climate-popup--clarify"
+    : isSuccess
+      ? "climate-popup--success"
+      : isCancelled
+        ? "climate-popup--cancelled"
+        : isAdjusting
+          ? "climate-popup--adjusting"
+          : "climate-popup--active";
+  const badgeText = isClarify
+    ? "Klaerung"
+    : isSuccess
+      ? "Angepasst"
+      : isCancelled
+        ? "Abgebrochen"
+        : isAdjusting
+          ? "Waermer"
+          : "Aktiv";
+  const title = isClarify
+    ? "Sitzheizung klaeren"
+    : isSuccess
+      ? "Sitzheizung aktualisiert"
+      : isCancelled
+        ? "Aenderung abgebrochen"
+        : isAdjusting
+          ? "Sitzheizung angepasst"
+          : payload.overlay_title || "Sitzheizung";
+  const body = isClarify
+    ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    : isSuccess
+      ? payload.accepted_text || "Sitzheizung aktualisiert"
+      : isCancelled
+        ? payload.rejected_text || "Aenderung abgebrochen"
+        : isAdjusting
+          ? payload.accepted_text || "Sitzheizung angepasst"
+          : payload.overlay_body || payload.prompt || "Sitz 1 wird waermer gestellt.";
+
+  const renderHeatLevels = (level: number) => (
+    <span className="climate-popup__heat-levels" aria-hidden>
+      {[1, 2, 3].map((dot) => (
+        <span key={dot} className={`climate-popup__heat-dot ${dot <= level ? "climate-popup__heat-dot--active" : ""}`} />
+      ))}
+    </span>
+  );
+
+  return (
+    <div className={`interaction-popup climate-popup-shell ${payload.event_type || ""}`}>
+      <section className={`climate-popup ${stageClass}`}>
+        <div className="climate-popup__header">
+          <div>
+            <span className="eyebrow climate-popup__eyebrow">Sitzheizung</span>
+            <h2>{title}</h2>
+          </div>
+          <span className="climate-popup__badge">{badgeText}</span>
+        </div>
+
+        <div className="climate-popup__content">
+          <div className="climate-popup__icon" aria-hidden>
+            <span>♨</span>
+          </div>
+
+          <div className="climate-popup__seat-panel">
+            <span className="climate-popup__label">{isAdjusting ? "Temperatur erhoeht" : "Klimaeinstellung"}</span>
+            <strong>{body}</strong>
+
+            <div className="climate-popup__seat-row">
+              <div>
+                <span>Sitz 1</span>
+                <strong>Stufe {seatOneLevel}</strong>
+              </div>
+              {renderHeatLevels(seatOneLevel)}
+            </div>
+
+            <div className="climate-popup__seat-row">
+              <div>
+                <span>Sitz 2</span>
+                <strong>Stufe {seatTwoLevel}</strong>
+              </div>
+              {renderHeatLevels(seatTwoLevel)}
+            </div>
+          </div>
+        </div>
+
+        {isGestureMode ? (
+          <div className="climate-popup__actions" aria-label="Sitzheizungsgesten">
+            <span className={`climate-popup__chip climate-popup__chip--adjust ${isAdjusting ? "climate-popup__chip--active" : ""}`}>
+              <span aria-hidden>↻</span>Handgelenk drehen
+            </span>
+            <span className={`climate-popup__chip climate-popup__chip--cancel ${isCancelled ? "climate-popup__chip--active" : ""}`}>
+              <span aria-hidden>↔</span>Swipe
+            </span>
+            <span className={`climate-popup__chip climate-popup__chip--confirm ${isSuccess ? "climate-popup__chip--active" : ""}`}>
+              <span aria-hidden>👍</span>Daumen hoch
+            </span>
+          </div>
+        ) : (
+          <div className="climate-popup__actions" aria-label="Sitzheizungsentscheidung">
+            <button className={`climate-popup__button climate-popup__button--accept ${isSuccess ? "climate-popup__button--active" : ""}`} type="button">
+              Annehmen
+            </button>
+            <button className={`climate-popup__button climate-popup__button--decline ${isCancelled ? "climate-popup__button--active" : ""}`} type="button">
+              Ablehnen
+            </button>
+          </div>
+        )}
+
+        <footer className="climate-popup__footer">
+          <span>Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
+          {usedModalities && <span>{usedModalities}</span>}
+          {payload.condition && <span>{payload.condition}</span>}
+        </footer>
+      </section>
     </div>
   );
 }
