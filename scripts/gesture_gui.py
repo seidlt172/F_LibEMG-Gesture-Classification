@@ -1708,11 +1708,46 @@ class GestureGUI:
         self.scenario_menu.config(state=tk.DISABLED)
         self._append_log_row(f"{datetime.now().strftime('%H:%M:%S')}  START {trial_id}")
 
+    def _build_final_trial_widget_payload(self, success):
+        study_context = self._trial_study_context()
+        step, step_index, step_count = self._current_widget_step()
+        prompt = "Trial erfolgreich beendet." if success else "Trial abgebrochen."
+        decision = "execute" if success else "cancel"
+        intent = {
+            **(self.last_intent_result or {}),
+            "intent": (self.last_intent_result or {}).get("intent", "trial_completed" if success else "trial_aborted"),
+            "action": (self.last_intent_result or {}).get("action", "complete" if success else "abort"),
+            "target": (self.last_intent_result or {}).get("target", step.domain),
+            "used_modalities": (self.last_intent_result or {}).get("used_modalities", "none"),
+        }
+        payload = build_trial_completed_payload(
+            intent_result=intent,
+            study_context=study_context,
+            voice_event=self.last_voice_event,
+            gesture_event=self.last_gesture_event,
+            step=step,
+            step_index=step_index,
+            step_count=step_count,
+            trial_id=study_context.get("trial_id"),
+            success=success,
+            decision_override=decision,
+            used_modalities=intent.get("used_modalities", "none"),
+        )
+        payload["prompt"] = prompt
+        payload["overlay_title"] = "Trial beendet" if success else "Trial abgebrochen"
+        payload["overlay_body"] = prompt
+        if success:
+            payload["accepted_text"] = prompt
+        else:
+            payload["rejected_text"] = prompt
+        return payload
+
     def _finish_trial(self, success):
         if not self.current_trial:
             self.trial_status_label.config(text="Kein aktiver Trial.", fg=TEXT_PRI)
             return
 
+        final_widget_payload = self._build_final_trial_widget_payload(success)
         end_timestamp = now_iso()
         duration_ms = int((time.monotonic() - self.current_trial["_start_monotonic"]) * 1000)
         events = list(self.current_trial_events)
@@ -1795,6 +1830,12 @@ class GestureGUI:
             text=f"Trial gespeichert: {trial_summary['trial_id']}",
             fg=ACCENT if success else "#f0c040",
         )
+        self.last_widget_payload = final_widget_payload
+        threading.Thread(
+            target=self._send_widget_payload,
+            args=(final_widget_payload,),
+            daemon=True,
+        ).start()
         self.current_trial = None
         self.current_trial_events = []
         self.scenario_menu.config(state=tk.NORMAL)

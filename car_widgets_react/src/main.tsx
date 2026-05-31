@@ -100,17 +100,19 @@ function App() {
   const livePayload = state.activePayload;
   // Temporary UI preview helper for popup/widget design. Remove or disable before final study run.
   const previewPayload = useMemo(() => createPreviewPayload(previewScenario), [previewScenario]);
-  const displayPayload = previewPayload ?? livePayload;
+  const isTerminalLivePayload = livePayload?.event_type === "trial_completed" || typeof livePayload?.success === "boolean";
+  const visibleLivePayload = isTerminalLivePayload ? null : livePayload;
+  const displayPayload = previewPayload ?? visibleLivePayload;
   const displayState = useMemo(() => createPreviewState(state, previewScenario, previewPayload), [state, previewScenario, previewPayload]);
   const shouldShowPopup = Boolean(
     previewPayload ||
-    (livePayload && (
-      livePayload.event_type === "scenario_start" ||
-      livePayload.event_type === "step_update" ||
-      livePayload.event_type === "trial_completed"
+    (visibleLivePayload && (
+      visibleLivePayload.event_type === "scenario_start" ||
+      visibleLivePayload.event_type === "step_update" ||
+      visibleLivePayload.event_type === "trial_completed"
     ))
   );
-  const previewControlLabel = previewPayload ? previewScenarioDisplayLabel(previewScenario) : liveScenarioLabel(livePayload);
+  const previewControlLabel = previewPayload ? previewScenarioDisplayLabel(previewScenario) : liveScenarioLabel(visibleLivePayload);
   const guidance = useMemo(() => guidanceFor(displayPayload), [displayPayload]);
   const stepLabel = displayPayload && typeof displayPayload.step_index === "number" && displayPayload.step_count
     ? `${(displayPayload.step_index ?? 0) + 1}/${displayPayload.step_count}`
@@ -1772,11 +1774,14 @@ function AmbientPopupWidget({ payload, state }: { payload: WidgetPayload; state:
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
   const isSwipe = gestureLabel === "Swipe";
   const isRotate = gestureLabel === "Handgelenk drehen";
+  const isCancelled = payload.success === false || payload.decision === "cancel";
   const isConfirmed = payload.decision === "execute" || gestureLabel === "Daumen hoch";
   const brightness = Math.max(0, Math.min(100, state.ambientBrightness));
   const colorPosition = isSwipe ? 72 : state.ambientColor === "Warm" ? 18 : state.ambientColor === "Blau" ? 70 : 45;
   const brightnessPosition = isRotate ? Math.min(100, brightness + 18) : brightness;
-  const statusText = isConfirmed
+  const statusText = isCancelled
+    ? "Trial abgebrochen"
+    : isConfirmed
     ? "Ambientebeleuchtung aktualisiert"
     : isSwipe
       ? "Swipe erkannt"
@@ -1786,14 +1791,14 @@ function AmbientPopupWidget({ payload, state }: { payload: WidgetPayload; state:
 
   return (
     <div className={`interaction-popup ambient-popup-shell ${payload.event_type || ""}`}>
-      <section className={`ambient-popup-card ${isConfirmed ? "ambient-popup-card--confirmed" : isSwipe || isRotate ? "ambient-popup-card--detected" : ""}`}>
+      <section className={`ambient-popup-card ${isCancelled ? "ambient-popup-card--cancelled" : isConfirmed ? "ambient-popup-card--confirmed" : isSwipe || isRotate ? "ambient-popup-card--detected" : ""}`}>
         <div className="ambient-popup-header">
           <div>
             <span className="eyebrow ambient-popup-eyebrow">Ambientebeleuchtung</span>
             <h2>{statusText}</h2>
           </div>
-          <span className={`ambient-popup-state ${isConfirmed ? "confirmed" : isSwipe || isRotate ? "detected" : ""}`}>
-            {isConfirmed ? "Ausgeführt" : isSwipe || isRotate ? "Geste erkannt" : "Aktiv"}
+          <span className={`ambient-popup-state ${isCancelled ? "cancelled" : isConfirmed ? "confirmed" : isSwipe || isRotate ? "detected" : ""}`}>
+            {isCancelled ? "Abgebrochen" : isConfirmed ? "Ausgeführt" : isSwipe || isRotate ? "Geste erkannt" : "Aktiv"}
           </span>
         </div>
 
@@ -1885,7 +1890,9 @@ function applyPayload(current: CockpitState, payload: WidgetPayload): CockpitSta
       activePayload: payload,
       completed: true,
       decision,
-      feedback: "Szenario abgeschlossen. Warte auf die nächste Aufgabe.",
+      feedback: payload.success === false
+        ? "Trial abgebrochen. Warte auf die nächste Aufgabe."
+        : "Szenario abgeschlossen. Warte auf die nächste Aufgabe.",
     };
   }
 
