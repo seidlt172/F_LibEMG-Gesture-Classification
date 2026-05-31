@@ -141,7 +141,6 @@ class VideoPlayer:
         self._load_and_play(path)
 
     def _load_and_play(self, path):
-
         # Stop any running playback
         self._playing = False
         self._token  += 1
@@ -157,22 +156,30 @@ class VideoPlayer:
             fps = 24
         self._frame_delay_ms = int(1000 / fps)
 
-        # Enforce ratio if specified (for right/widget canvas only)
-        if self._fixed_ratio is not None:
-            self.canvas.update_idletasks()
-            w = self.canvas.winfo_width()
-            if w < 10:
-                w = 700
-            h = int(w / self._fixed_ratio)
-            self.canvas.config(height=h)
-
         # Hide placeholder and icon text
         self.canvas.itemconfig(self.placeholder_id, text="")
         self.canvas.itemconfig(self.icon_id, text="")
 
         self._playing = True
-        self._last_frame_time = time.time()
         token = self._token
+
+        if self._fixed_ratio is not None:
+            # Delay 100ms so canvas has correct width after pack
+            self.root.after(100, lambda: self._apply_ratio_then_play(token))
+        else:
+            self._schedule_frame(token)
+
+    def _apply_ratio_then_play(self, token):
+        """Called after a short delay so winfo_width() is accurate."""
+        if token != self._token or not self._playing:
+            return
+        self.canvas.update_idletasks()
+        w = self.canvas.winfo_width()
+        if w < 10:
+            w = 600
+        h = int(w / self._fixed_ratio)
+        self.canvas.config(width=w, height=h)
+        self.canvas.update_idletasks()
         self._schedule_frame(token)
 
     def _schedule_frame(self, token):
@@ -637,9 +644,6 @@ class CalibGUI:
         self.battery_lbl = tk.Label(header, text="🔋 —",
                                     font=self.f_header, bg=BG, fg=TEXT_SEC)
         self.battery_lbl.pack(side="left", padx=(20, 0))
-        self.step_label = tk.Label(header, text="",
-                                   font=self.f_sub, bg=BG, fg=TEXT_SEC)
-        self.step_label.pack(side="right")
 
         # Progress bar
         pb_outer = tk.Frame(self.root, bg=BG)
@@ -735,9 +739,10 @@ class CalibGUI:
         # Center the actual content at fixed 840px
         self._main = tk.Frame(self._main_outer, bg=BG, width=CONTENT_W)
         self._main.pack(anchor="center", pady=(0, 20))
+        self._main.pack_propagate(False)
 
-        self._main.columnconfigure(0, weight=0, minsize=352)
-        self._main.columnconfigure(1, weight=1)
+        self._main.columnconfigure(0, weight=0, minsize=352)   # left: fixed
+        self._main.columnconfigure(1, weight=0, minsize=476)   # right: 840-352-12=476
         self._main.rowconfigure(0, weight=1)
         main = self._main
 
@@ -824,11 +829,11 @@ class CalibGUI:
                  fg=TEXT_SEC, anchor="w").pack(fill="x")
         tk.Frame(ex_card, bg=BORDER, height=1).pack(fill="x", pady=6)
 
-        # 16:9 canvas — TOP, fills container width, fixed height
+        # 16:9 canvas — fixed width 444px (476 - 2*16 padx), height set by ratio
         self.preview_canvas = tk.Canvas(ex_card, bg=BG_TILE,
                                         highlightbackground=BORDER,
                                         highlightthickness=1,
-                                        height=400)
+                                        width=444, height=250)
         # Don't pack here — shown/hidden by _show_current_example
         self._preview_text_id = self.preview_canvas.create_text(
             240, 200, text="",
@@ -1064,9 +1069,6 @@ class CalibGUI:
         if phase not in ("training", "done", "error", "ready", "waiting"):
             done += rep_idx
         self.prog_bar.place(relwidth=min(done / total, 1.0))
-        self.step_label.config(
-            text=f"Geste {min(g_idx + 1, n_gestures)} von {n_gestures}"
-            if phase not in ("ready", "waiting", "done", "training") else "")
 
         # Tiles
         for gid in GESTURES:
