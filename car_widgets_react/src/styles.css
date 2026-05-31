@@ -1364,6 +1364,11 @@ small {
   box-shadow: 0 0 0 1px rgba(245,158,11,0.24), 0 26px 72px rgba(0,0,0,0.7), 0 12px 38px rgba(245,158,11,0.2);
 }
 
+.call-popup--volume {
+  border-color: rgba(59,130,246,0.78);
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.24), 0 26px 72px rgba(0,0,0,0.7), 0 12px 38px rgba(59,130,246,0.22);
+}
+
 .call-popup__header {
   display: flex;
   align-items: flex-start;
@@ -1401,6 +1406,11 @@ small {
   color: #fbbf24;
 }
 
+.call-popup--volume .call-popup__badge {
+  background: rgba(59,130,246,0.16);
+  color: #93c5fd;
+}
+
 .call-popup__content {
   display: block;
 }
@@ -1435,6 +1445,22 @@ small {
   font-size: 13px;
   font-weight: 600;
   line-height: 1.35;
+}
+
+.call-popup__volume {
+  position: relative;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  overflow: hidden;
+}
+
+.call-popup__volume span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(to right, #bfdbfe, #3b82f6);
 }
 
 .call-popup__actions {
@@ -1523,6 +1549,11 @@ small {
   background: #3a1a22;
 }
 
+.call-popup__chip--volume {
+  color: #93c5fd;
+  background: #1e3a5f;
+}
+
 .call-popup__chip--active.call-popup__chip--accept {
   color: #ffffff;
   background: #15803d;
@@ -1533,6 +1564,12 @@ small {
   color: #ffffff;
   background: #dc2626;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 8px 22px rgba(248,113,113,0.28);
+}
+
+.call-popup__chip--active.call-popup__chip--volume {
+  color: #ffffff;
+  background: #2563eb;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 8px 22px rgba(59,130,246,0.32);
 }
 
 .navigation-popup-shell {
@@ -1564,6 +1601,11 @@ small {
 }
 
 .navigation-popup--selected {
+  border-color: rgba(194,122,255,0.78);
+  box-shadow: 0 0 0 1px rgba(194,122,255,0.24), 0 26px 72px rgba(0,0,0,0.7), 0 12px 38px rgba(124,58,237,0.24);
+}
+
+.navigation-popup--browsing {
   border-color: rgba(194,122,255,0.78);
   box-shadow: 0 0 0 1px rgba(194,122,255,0.24), 0 26px 72px rgba(0,0,0,0.7), 0 12px 38px rgba(124,58,237,0.24);
 }
@@ -1611,6 +1653,11 @@ small {
 }
 
 .navigation-popup--selected .navigation-popup__badge {
+  background: rgba(124,58,237,0.2);
+  color: #dab2ff;
+}
+
+.navigation-popup--browsing .navigation-popup__badge {
   background: rgba(124,58,237,0.2);
   color: #dab2ff;
 }
@@ -1745,6 +1792,12 @@ small {
   box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 8px 22px rgba(248,113,113,0.28);
 }
 
+.navigation-popup--browsing .navigation-popup__chip--active.navigation-popup__chip--decline {
+  color: #ffffff;
+  background: #7c3aed;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 8px 22px rgba(124,58,237,0.32);
+}
+
 .navigation-popup__chip--active.navigation-popup__chip--select {
   color: #ffffff;
   background: #7c3aed;
@@ -1782,6 +1835,11 @@ small {
 .audio-popup--volume {
   border-color: rgba(59,130,246,0.78);
   box-shadow: 0 0 0 1px rgba(59,130,246,0.24), 0 26px 72px rgba(0,0,0,0.7), 0 12px 38px rgba(59,130,246,0.22);
+}
+
+.audio-popup--paused {
+  border-color: rgba(59,130,246,0.58);
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.18), 0 26px 72px rgba(0,0,0,0.7), 0 12px 34px rgba(59,130,246,0.16);
 }
 
 .audio-popup--clarify {
@@ -1829,6 +1887,11 @@ small {
 .audio-popup--clarify .audio-popup__badge {
   background: rgba(245,158,11,0.18);
   color: #fbbf24;
+}
+
+.audio-popup--paused .audio-popup__badge {
+  background: rgba(59,130,246,0.16);
+  color: #93c5fd;
 }
 
 .audio-popup__content {
@@ -2224,6 +2287,11 @@ small {
   box-shadow: 0 0 0 1px rgba(249,115,22,0.24), 0 26px 72px rgba(0,0,0,0.7), 0 12px 38px rgba(249,115,22,0.24);
 }
 
+.climate-popup--selecting {
+  border-color: rgba(249,115,22,0.78);
+  box-shadow: 0 0 0 1px rgba(249,115,22,0.24), 0 26px 72px rgba(0,0,0,0.7), 0 12px 38px rgba(249,115,22,0.24);
+}
+
 .climate-popup--success {
   border-color: rgba(52,211,153,0.74);
   box-shadow: 0 0 0 1px rgba(52,211,153,0.22), 0 26px 72px rgba(0,0,0,0.7), 0 12px 38px rgba(52,211,153,0.2);
@@ -2271,6 +2339,11 @@ small {
   color: #7bf1a8;
 }
 
+.climate-popup--selecting .climate-popup__badge {
+  background: rgba(249,115,22,0.18);
+  color: #fdba74;
+}
+
 .climate-popup--cancelled .climate-popup__badge {
   background: rgba(239,68,68,0.16);
   color: #fca5a5;
@@ -2309,25 +2382,74 @@ small {
   line-height: 1.14;
 }
 
-.climate-popup__seat-row {
-  min-height: 48px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.04);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.climate-popup__seat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.climate-popup__seat-row span {
-  display: block;
+.climate-popup__seat-card {
+  min-height: 132px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.climate-popup__seat-card--selected {
+  border-color: rgba(249,115,22,0.86);
+  background: rgba(249,115,22,0.12);
+  box-shadow: 0 0 0 1px rgba(249,115,22,0.18), 0 0 24px rgba(249,115,22,0.24);
+}
+
+.climate-popup__seat-icon {
+  width: 42px;
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.climate-popup__seat-icon span:nth-child(1) {
+  width: 24px;
+  height: 14px;
+  border-radius: 999px;
+  background: #4b5563;
+}
+
+.climate-popup__seat-icon span:nth-child(2) {
+  width: 38px;
+  height: 34px;
+  border-radius: 12px;
+  background: #4b5563;
+}
+
+.climate-popup__seat-icon span:nth-child(3) {
+  width: 42px;
+  height: 14px;
+  border-radius: 999px;
+  background: #4b5563;
+}
+
+.climate-popup__seat-card--selected .climate-popup__seat-icon span {
+  background: #f97316;
+  box-shadow: 0 0 14px rgba(249,115,22,0.36);
+}
+
+.climate-popup__seat-card span:not(.climate-popup__seat-icon, .climate-popup__seat-icon span) {
   color: #99a1af;
   font-size: 11px;
   font-weight: 700;
 }
 
-.climate-popup__seat-row strong {
+.climate-popup__seat-card strong {
   display: block;
   margin-top: 2px;
   color: #ffffff;
@@ -2338,26 +2460,16 @@ small {
 .climate-popup__heat-levels {
   flex: 0 0 auto;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: center;
   gap: 5px;
 }
 
 .climate-popup__heat-dot {
   width: 12px;
+  height: 12px;
   border-radius: 999px;
   background: rgba(255,255,255,0.14);
-}
-
-.climate-popup__heat-dot:nth-child(1) {
-  height: 16px;
-}
-
-.climate-popup__heat-dot:nth-child(2) {
-  height: 24px;
-}
-
-.climate-popup__heat-dot:nth-child(3) {
-  height: 32px;
 }
 
 .climate-popup__heat-dot--active {
@@ -2430,13 +2542,8 @@ small {
 }
 
 .climate-popup__chip--cancel {
-  color: #fca5a5;
-  background: #3a2428;
-}
-
-.climate-popup__chip--confirm {
-  color: #7bf1a8;
-  background: #1a3a2a;
+  color: #fdba74;
+  background: #3a2d22;
 }
 
 .climate-popup__chip--active.climate-popup__chip--adjust {
@@ -2451,10 +2558,10 @@ small {
   box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 8px 22px rgba(239,68,68,0.32);
 }
 
-.climate-popup__chip--active.climate-popup__chip--confirm {
-  color: #ffffff;
-  background: #15803d;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 8px 22px rgba(52,211,153,0.28);
+.climate-popup--selecting .climate-popup__chip--active.climate-popup__chip--cancel {
+  color: #1e1e2e;
+  background: #fb923c;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 8px 22px rgba(249,115,22,0.32);
 }
 
 .ambient-popup-shell {

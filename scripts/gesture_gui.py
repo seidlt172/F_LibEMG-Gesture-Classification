@@ -1736,6 +1736,7 @@ class GestureGUI:
         payload["prompt"] = prompt
         payload["overlay_title"] = "Trial beendet" if success else "Trial abgebrochen"
         payload["overlay_body"] = prompt
+        payload["finalized_by_operator"] = True
         if success:
             payload["accepted_text"] = prompt
         else:

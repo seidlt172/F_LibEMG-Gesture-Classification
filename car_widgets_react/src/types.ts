@@ -45,6 +45,7 @@ export interface WidgetPayload {
   value?: string | null;
   clarification?: string;
   success?: boolean;
+  finalized_by_operator?: boolean;
   source?: WidgetPayloadSource;
 }
 

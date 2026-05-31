@@ -86,7 +86,7 @@ function App() {
   const livePayload = state.activePayload;
   // Temporary UI preview helper for popup/widget design. Remove or disable before final study run.
   const previewPayload = useMemo(() => createPreviewPayload(previewScenario), [previewScenario]);
-  const isTerminalLivePayload = livePayload?.event_type === "trial_completed" || typeof livePayload?.success === "boolean";
+  const isTerminalLivePayload = livePayload?.event_type === "trial_completed" && livePayload.success === false;
   const visibleLivePayload = isTerminalLivePayload ? null : livePayload;
   const displayPayload = previewPayload ?? visibleLivePayload;
   const displayState = useMemo(() => createPreviewState(state, previewScenario, previewPayload), [state, previewScenario, previewPayload]);
@@ -784,7 +784,6 @@ function ClimateWidget() {
               <span className="climate-seat-icon" aria-hidden>▰</span>
             </div>
             <div className="climate-seat-control">
-              <strong>Stufe 2</strong>
               <span className="climate-stepper" aria-hidden>
                 <span>⌃</span>
                 <span>⌄</span>
@@ -798,7 +797,6 @@ function ClimateWidget() {
               <span className="climate-seat-icon" aria-hidden>▰</span>
             </div>
             <div className="climate-seat-control">
-              <strong>Stufe 1</strong>
               <span className="climate-stepper" aria-hidden>
                 <span>⌃</span>
                 <span>⌄</span>
@@ -888,25 +886,43 @@ function isClimateDomain(domain: WidgetPayload["domain"]): boolean {
   return domain === "climate" || String(domain) === "seat_heating" || String(domain) === "seat-heating";
 }
 
+function normalizeGestureLabel(label: string | null | undefined): string {
+  const normalized = String(label ?? "").toLowerCase().replace(/\s+/g, "").replace(/\//g, "");
+  if (normalized === "zeigentippen" || normalized === "zeigen" || normalized === "tippen") {
+    return "tap";
+  }
+  return normalized;
+}
+
 function CallPopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const normalizedGesture = normalizeGestureLabel(gestureLabel);
   const usedModalities = payload.source?.used_modalities;
   const intentText = `${payload.intent ?? ""} ${payload.action ?? ""} ${payload.target ?? ""}`.toLowerCase();
   const isClarify = payload.decision === "clarify";
+  const isVolumeTask = payload.task_id === "CALL-VOLUME";
+  const isRotate = normalizedGesture === "handgelenkdrehen";
   const isAccepted = !isClarify && (
+    !isVolumeTask && (
     gestureLabel === "Daumen hoch" ||
     payload.decision === "execute" ||
     intentText.includes("accept")
+    )
   );
   const isDeclined = !isClarify && (
+    !isVolumeTask && (
     gestureLabel === "Swipe" ||
     payload.decision === "cancel" ||
     intentText.includes("reject") ||
     intentText.includes("decline")
+    )
   );
+  const isVolumeAdjusting = !isClarify && isVolumeTask && (isRotate || payload.decision === "execute");
   const isGestureMode = payload.condition !== "Voice only" || Boolean(payload.expected_gesture) || Boolean(usedModalities?.includes("gesture"));
   const stageClass = isClarify
     ? "call-popup--clarify"
+    : isVolumeTask
+      ? "call-popup--volume"
     : isAccepted
       ? "call-popup--accepted"
       : isDeclined
@@ -914,6 +930,8 @@ function CallPopupWidget({ payload, state }: { payload: WidgetPayload; state: Co
         : "call-popup--incoming";
   const badgeText = isClarify
     ? "Klären"
+    : isVolumeTask
+      ? "Lautstärke"
     : isAccepted
       ? "Angenommen"
       : isDeclined
@@ -923,12 +941,15 @@ function CallPopupWidget({ payload, state }: { payload: WidgetPayload; state: Co
         : "Aktiv";
   const body = isClarify
     ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    : isVolumeTask
+      ? payload.accepted_text || payload.overlay_body || payload.prompt || "Anruflautstärke regeln."
     : isAccepted
       ? payload.accepted_text || "Anruf angenommen"
       : isDeclined
         ? payload.rejected_text || "Anruf abgelehnt"
         : payload.overlay_body || payload.prompt || "Max Mustermann ruft an.";
-  const callStatus = isAccepted ? "Verbunden" : isDeclined ? "Beendet" : "Eingehend";
+  const callVolume = Math.max(0, Math.min(100, isVolumeAdjusting ? Math.max(state.volume, 72) : state.volume));
+  const callStatus = isVolumeTask ? "Aktiver Anruf" : isAccepted ? "Verbunden" : isDeclined ? "Beendet" : "Eingehend";
 
   return (
     <div className={`interaction-popup call-popup-shell ${payload.event_type || ""}`}>
@@ -942,13 +963,24 @@ function CallPopupWidget({ payload, state }: { payload: WidgetPayload; state: Co
 
         <div className="call-popup__content">
           <div className="call-popup__details">
-            <span className="call-popup__label">Max Mustermann</span>
+            <span className="call-popup__label">{isVolumeTask ? "Anruflautstärke" : "Max Mustermann"}</span>
             <strong>{callStatus}</strong>
             <p>{body}</p>
+            {isVolumeTask && (
+              <div className="call-popup__volume" aria-label={`Anruflautstärke ${callVolume}%`}>
+                <span style={{ width: `${callVolume}%` }} />
+              </div>
+            )}
           </div>
         </div>
 
-        {isAccepted ? (
+        {isVolumeTask ? (
+          <div className="call-popup__actions" aria-label="Anruflautstärke">
+            <span className={`call-popup__chip call-popup__chip--volume ${isVolumeAdjusting ? "call-popup__chip--active" : ""}`}>
+              <span aria-hidden>↻</span>Handgelenk drehen
+            </span>
+          </div>
+        ) : isAccepted ? (
           <div className="call-popup__actions call-popup__actions--connected" aria-label="Anrufstatus">
             <span className="call-popup__success-pill">Verbunden</span>
             <button className="call-popup__button call-popup__button--hangup" type="button">
@@ -981,14 +1013,22 @@ function CallPopupWidget({ payload, state }: { payload: WidgetPayload; state: Co
 
 function NavigationPopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const normalizedGesture = normalizeGestureLabel(gestureLabel);
   const usedModalities = payload.source?.used_modalities;
   const isClarify = payload.decision === "clarify";
-  const isAccepted = !isClarify && (gestureLabel === "Daumen hoch" || payload.decision === "execute");
-  const isDeclined = !isClarify && (gestureLabel === "Swipe" || payload.decision === "cancel");
-  const isSelected = !isClarify && gestureLabel === "Zeigen/Tippen";
+  const isNextRouteTask = payload.task_id === "NAV-NEXT-ROUTE";
+  const isSelectRouteTask = payload.task_id === "NAV-SELECT-SECOND";
+  const isSwipe = normalizedGesture === "swipe";
+  const isTap = normalizedGesture === "tap";
+  const isBrowsingNextRoute = !isClarify && isNextRouteTask && (isSwipe || payload.decision === "execute");
+  const isSelected = !isClarify && (isSelectRouteTask ? (isTap || payload.decision === "execute") : isTap);
+  const isAccepted = !isClarify && !isNextRouteTask && !isSelectRouteTask && (gestureLabel === "Daumen hoch" || payload.decision === "execute");
+  const isDeclined = !isClarify && !isNextRouteTask && (isSwipe || payload.decision === "cancel");
   const isGestureMode = payload.condition !== "Voice only" || Boolean(payload.expected_gesture) || Boolean(usedModalities?.includes("gesture"));
   const routeName = isSelected
     ? "Alternative Route"
+    : isBrowsingNextRoute
+      ? "Nächster Vorschlag"
     : isAccepted
       ? "Schnellere Route"
       : isDeclined
@@ -996,6 +1036,8 @@ function NavigationPopupWidget({ payload, state }: { payload: WidgetPayload; sta
         : "Schnellere Route";
   const stageClass = isClarify
     ? "navigation-popup--clarify"
+    : isBrowsingNextRoute
+      ? "navigation-popup--browsing"
     : isAccepted
       ? "navigation-popup--accepted"
       : isDeclined
@@ -1005,6 +1047,8 @@ function NavigationPopupWidget({ payload, state }: { payload: WidgetPayload; sta
           : "navigation-popup--suggested";
   const badgeText = isClarify
     ? "Klärung"
+    : isBrowsingNextRoute
+      ? "Nächste Route"
     : isAccepted
       ? "Ausgewählt"
       : isDeclined
@@ -1014,6 +1058,8 @@ function NavigationPopupWidget({ payload, state }: { payload: WidgetPayload; sta
           : "Aktiv";
   const body = isClarify
     ? payload.unclear_text || payload.prompt || "Bitte Auswahl wiederholen."
+    : isBrowsingNextRoute
+      ? payload.accepted_text || "Nächster Routenvorschlag angezeigt."
     : isAccepted
       ? payload.accepted_text || "Route übernommen"
       : isDeclined
@@ -1049,8 +1095,8 @@ function NavigationPopupWidget({ payload, state }: { payload: WidgetPayload; sta
             <span className={`navigation-popup__chip navigation-popup__chip--accept ${isAccepted ? "navigation-popup__chip--active" : ""}`}>
               <span aria-hidden>👍</span>Daumen hoch
             </span>
-            <span className={`navigation-popup__chip navigation-popup__chip--decline ${isDeclined ? "navigation-popup__chip--active" : ""}`}>
-              <span aria-hidden>↔</span>Swipe
+            <span className={`navigation-popup__chip navigation-popup__chip--decline ${isDeclined || isBrowsingNextRoute ? "navigation-popup__chip--active" : ""}`}>
+              <span aria-hidden>↔</span>{isNextRouteTask ? "Nächste Route" : "Swipe"}
             </span>
             <span className={`navigation-popup__chip navigation-popup__chip--select ${isSelected ? "navigation-popup__chip--active" : ""}`}>
               <span aria-hidden>⌾</span>Zeigen/Tippen
@@ -1073,21 +1119,27 @@ function NavigationPopupWidget({ payload, state }: { payload: WidgetPayload; sta
 
 function AudioPopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const normalizedGesture = normalizeGestureLabel(gestureLabel);
   const usedModalities = payload.source?.used_modalities;
   const isClarify = payload.decision === "clarify";
-  const isPlaying = !isClarify && (gestureLabel === "Daumen hoch" || payload.decision === "execute");
-  const isSkipped = !isClarify && (gestureLabel === "Swipe" || payload.decision === "cancel");
+  const isResumeTask = payload.task_id === "AUDIO-RESUME";
+  const isNextTask = payload.task_id === "AUDIO-NEXT";
+  const isTap = normalizedGesture === "tap";
+  const isPlaying = !isClarify && !isNextTask && (gestureLabel === "Daumen hoch" || isTap || payload.decision === "execute");
+  const isSkipped = !isClarify && isNextTask && (gestureLabel === "Swipe" || payload.decision === "execute" || payload.decision === "cancel");
   const isVolume = !isClarify && gestureLabel === "Handgelenk drehen";
   const isGestureMode = payload.condition !== "Voice only" || Boolean(payload.expected_gesture) || Boolean(usedModalities?.includes("gesture"));
   const volume = Math.max(0, Math.min(100, isVolume ? Math.max(state.volume, 72) : state.volume));
-  const progress = isSkipped ? 18 : isPlaying ? 48 : 32;
+  const progress = isResumeTask && !isPlaying ? 28 : isSkipped ? 18 : isPlaying ? 48 : 32;
   const trackTitle = state.track || "Night Drive";
   const stageClass = isClarify
     ? "audio-popup--clarify"
     : isVolume
       ? "audio-popup--volume"
-      : isSkipped
-        ? "audio-popup--skipped"
+    : isSkipped
+      ? "audio-popup--skipped"
+      : isResumeTask && !isPlaying
+        ? "audio-popup--paused"
         : isPlaying
           ? "audio-popup--playing"
           : "audio-popup--suggested";
@@ -1095,8 +1147,10 @@ function AudioPopupWidget({ payload, state }: { payload: WidgetPayload; state: C
     ? "Klärung"
     : isVolume
       ? "Lautstärke"
-      : isSkipped
-        ? "Übersprungen"
+    : isSkipped
+      ? "Nächster Song"
+      : isResumeTask && !isPlaying
+        ? "Pausiert"
         : isPlaying
           ? "Spielt"
           : "Vorschlag";
@@ -1104,12 +1158,14 @@ function AudioPopupWidget({ payload, state }: { payload: WidgetPayload; state: C
     ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
     : isVolume
       ? payload.accepted_text || "Lautstärke angepasst"
-      : isSkipped
-        ? payload.rejected_text || "Song übersprungen"
-        : isPlaying
-          ? payload.accepted_text || "Wiedergabe gestartet"
-          : payload.overlay_body || payload.prompt || "Night Drive abspielen?";
-  const metaText = isVolume ? `${volume}% Lautstärke` : isPlaying ? "Spielt" : isSkipped ? "Weiter" : "Vorgeschlagen";
+    : isSkipped
+      ? payload.accepted_text || "Nächster Song wird abgespielt"
+      : isPlaying
+        ? payload.accepted_text || "Wiedergabe gestartet"
+        : isResumeTask
+          ? payload.overlay_body || payload.prompt || "Song ist pausiert."
+        : payload.overlay_body || payload.prompt || "Night Drive abspielen?";
+  const metaText = isVolume ? `${volume}% Lautstärke` : isResumeTask && !isPlaying ? "Pausiert" : isPlaying ? "Spielt" : isSkipped ? "Nächster Titel" : isNextTask ? "Aktive Wiedergabe" : "Vorgeschlagen";
 
   return (
     <div className={`interaction-popup audio-popup-shell ${payload.event_type || ""}`}>
@@ -1140,10 +1196,10 @@ function AudioPopupWidget({ payload, state }: { payload: WidgetPayload; state: C
         {isGestureMode ? (
           <div className="audio-popup__actions" aria-label="Audiogesten">
             <span className={`audio-popup__chip audio-popup__chip--accept ${isPlaying ? "audio-popup__chip--active" : ""}`}>
-              <span aria-hidden>👍</span>Daumen hoch
+              <span aria-hidden>{isResumeTask ? "⌾" : "👍"}</span>{isResumeTask ? "Zeigen/Tippen" : "Daumen hoch"}
             </span>
             <span className={`audio-popup__chip audio-popup__chip--decline ${isSkipped ? "audio-popup__chip--active" : ""}`}>
-              <span aria-hidden>↔</span>Swipe
+              <span aria-hidden>↔</span>{isNextTask ? "Nächster Song" : "Swipe"}
             </span>
             <span className={`audio-popup__chip audio-popup__chip--volume ${isVolume ? "audio-popup__chip--active" : ""}`}>
               <span aria-hidden>↻</span>Drehen
@@ -1166,10 +1222,11 @@ function AudioPopupWidget({ payload, state }: { payload: WidgetPayload; state: C
 
 function MessagesPopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const normalizedGesture = normalizeGestureLabel(gestureLabel);
   const usedModalities = payload.source?.used_modalities;
   const isClarify = payload.decision === "clarify";
   const isConfirmed = !isClarify && gestureLabel === "Daumen hoch";
-  const isOpened = !isClarify && !isConfirmed && (gestureLabel === "Zeigen/Tippen" || payload.decision === "execute");
+  const isOpened = !isClarify && !isConfirmed && (normalizedGesture === "tap" || payload.decision === "execute");
   const isClosed = !isClarify && (gestureLabel === "Swipe" || payload.decision === "cancel");
   const isGestureMode = payload.condition !== "Voice only" || Boolean(payload.expected_gesture) || Boolean(usedModalities?.includes("gesture"));
   const stageClass = isClarify
@@ -1248,16 +1305,24 @@ function MessagesPopupWidget({ payload, state }: { payload: WidgetPayload; state
 
 function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
+  const normalizedGesture = normalizeGestureLabel(gestureLabel);
   const usedModalities = payload.source?.used_modalities;
   const isClarify = payload.decision === "clarify";
-  const isAdjusting = !isClarify && gestureLabel === "Handgelenk drehen";
-  const isSuccess = !isClarify && (gestureLabel === "Daumen hoch" || payload.decision === "execute");
-  const isCancelled = !isClarify && (gestureLabel === "Swipe" || payload.decision === "cancel");
+  const isSeatSelectTask = payload.task_id === "CLIMATE-SEAT-HEAT";
+  const isIncreaseTask = payload.task_id === "CLIMATE-SEAT-WARMER" || payload.task_id === "CLIMATE-INCREASE";
+  const isSwipe = normalizedGesture === "swipe";
+  const isAdjusting = !isClarify && isIncreaseTask && gestureLabel === "Handgelenk drehen";
+  const isSelectingSeatHeat = !isClarify && isSeatSelectTask && (isSwipe || payload.decision === "execute");
+  const isSuccess = !isClarify && !isSeatSelectTask && (gestureLabel === "Daumen hoch" || payload.decision === "execute");
+  const isCancelled = !isClarify && !isSeatSelectTask && (isSwipe || payload.decision === "cancel");
   const isGestureMode = payload.condition !== "Voice only" || Boolean(payload.expected_gesture) || Boolean(usedModalities?.includes("gesture"));
   const seatOneLevel = Math.max(1, Math.min(3, isAdjusting || isSuccess ? Math.max(state.seatLevel, 2) : state.seatLevel));
   const seatTwoLevel = 1;
+  const selectedSeat = isSeatSelectTask && isSelectingSeatHeat ? 2 : 1;
   const stageClass = isClarify
     ? "climate-popup--clarify"
+    : isSelectingSeatHeat
+      ? "climate-popup--selecting"
     : isSuccess
       ? "climate-popup--success"
       : isCancelled
@@ -1267,6 +1332,8 @@ function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state:
           : "climate-popup--active";
   const badgeText = isClarify
     ? "Klärung"
+    : isSelectingSeatHeat
+      ? "Ausgewählt"
     : isSuccess
       ? "Angepasst"
       : isCancelled
@@ -1276,6 +1343,8 @@ function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state:
           : "Aktiv";
   const body = isClarify
     ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    : isSelectingSeatHeat
+      ? payload.accepted_text || "Sitzheizung ausgewählt."
     : isSuccess
       ? payload.accepted_text || "Sitzheizung aktualisiert"
       : isCancelled
@@ -1283,13 +1352,25 @@ function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state:
         : isAdjusting
           ? payload.accepted_text || "Sitzheizung angepasst"
           : payload.overlay_body || payload.prompt || "Sitz 1 wird wärmer gestellt.";
-
   const renderHeatLevels = (level: number) => (
     <span className="climate-popup__heat-levels" aria-hidden>
       {[1, 2, 3].map((dot) => (
         <span key={dot} className={`climate-popup__heat-dot ${dot <= level ? "climate-popup__heat-dot--active" : ""}`} />
       ))}
     </span>
+  );
+  const renderSeatCard = (seat: 1 | 2, label: string, level: number) => (
+    <div className={`climate-popup__seat-card ${selectedSeat === seat ? "climate-popup__seat-card--selected" : ""}`}>
+      <span className="climate-popup__seat-icon" aria-hidden>
+        <span />
+        <span />
+        <span />
+      </span>
+      <div>
+        <span>{label}</span>
+      </div>
+      {renderHeatLevels(level)}
+    </div>
   );
 
   return (
@@ -1304,37 +1385,23 @@ function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state:
 
         <div className="climate-popup__content">
           <div className="climate-popup__seat-panel">
-            <span className="climate-popup__label">{isAdjusting ? "Temperatur erhöht" : "Klimaeinstellung"}</span>
+            <span className="climate-popup__label">{isAdjusting ? "Temperatur erhöht" : isSeatSelectTask ? "Sitzheizung auswählen" : "Klimaeinstellung"}</span>
             <strong>{body}</strong>
 
-            <div className="climate-popup__seat-row">
-              <div>
-                <span>Sitz 1</span>
-                <strong>Stufe {seatOneLevel}</strong>
-              </div>
-              {renderHeatLevels(seatOneLevel)}
-            </div>
-
-            <div className="climate-popup__seat-row">
-              <div>
-                <span>Sitz 2</span>
-                <strong>Stufe {seatTwoLevel}</strong>
-              </div>
-              {renderHeatLevels(seatTwoLevel)}
+            <div className="climate-popup__seat-grid" aria-label="Sitzauswahl">
+              {renderSeatCard(1, "Driver seat", seatOneLevel)}
+              {renderSeatCard(2, "Passenger seat", seatTwoLevel)}
             </div>
           </div>
         </div>
 
         {isGestureMode ? (
           <div className="climate-popup__actions" aria-label="Sitzheizungsgesten">
-            <span className={`climate-popup__chip climate-popup__chip--adjust ${isAdjusting ? "climate-popup__chip--active" : ""}`}>
-              <span aria-hidden>↻</span>Handgelenk drehen
-            </span>
-            <span className={`climate-popup__chip climate-popup__chip--cancel ${isCancelled ? "climate-popup__chip--active" : ""}`}>
+            <span className={`climate-popup__chip climate-popup__chip--cancel ${isCancelled || isSelectingSeatHeat ? "climate-popup__chip--active" : ""}`}>
               <span aria-hidden>↔</span>Swipe
             </span>
-            <span className={`climate-popup__chip climate-popup__chip--confirm ${isSuccess ? "climate-popup__chip--active" : ""}`}>
-              <span aria-hidden>👍</span>Daumen hoch
+            <span className={`climate-popup__chip climate-popup__chip--adjust ${isAdjusting ? "climate-popup__chip--active" : ""}`}>
+              <span aria-hidden>↻</span>Handgelenk drehen
             </span>
           </div>
         ) : (
@@ -1439,6 +1506,13 @@ function guidanceFor(payload: WidgetPayload | null): string {
 
 // --- existing payload application logic preserved below ---
 function applyPayload(current: CockpitState, payload: WidgetPayload): CockpitState {
+  if (payload.event_type === "trial_completed" && payload.success === false) {
+    return createIdleState();
+  }
+  if (payload.finalized_by_operator === true) {
+    return current;
+  }
+
   if (payload.event_type === "scenario_start") {
     return initializeForStep(createIdleState(), payload);
   }
