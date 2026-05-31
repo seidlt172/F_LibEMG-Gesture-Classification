@@ -1619,7 +1619,7 @@ class GestureGUI:
                 fg=ACCENT,
             )
         else:
-            self.action_status_label.config(text="Intent erfolgreich ausgewertet. Naechster Schritt aktiv.", fg=ACCENT)
+            self.action_status_label.config(text="Intent erfolgreich ausgewertet. Nächster Schritt aktiv.", fg=ACCENT)
             self._set_trial_step_status()
 
     def _send_widget_payload(self, payload):

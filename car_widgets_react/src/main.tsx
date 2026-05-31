@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { Decision, Domain, LatestResponse, WidgetPayload } from "./types";
+import type { Decision, LatestResponse, WidgetPayload } from "./types";
 import "./styles.css";
 
 const bridgeUrl = import.meta.env.VITE_WIDGET_EVENT_URL ?? "http://127.0.0.1:8765/latest";
@@ -56,7 +56,7 @@ function createIdleState(): CockpitState {
   return {
     activePayload: null,
     completed: false,
-    feedback: "Warte auf naechste Aufgabe.",
+    feedback: "Warte auf nächste Aufgabe.",
     decision: "",
     callActive: false,
     callIncoming: false,
@@ -102,15 +102,11 @@ function App() {
   const previewPayload = useMemo(() => createPreviewPayload(previewScenario), [previewScenario]);
   const displayPayload = previewPayload ?? livePayload;
   const displayState = useMemo(() => createPreviewState(state, previewScenario, previewPayload), [state, previewScenario, previewPayload]);
+  const showPreviewPopup = previewScenario !== "off";
   const guidance = useMemo(() => guidanceFor(displayPayload), [displayPayload]);
-  const activeDomain = displayPayload?.domain !== "unknown" ? displayPayload?.domain : undefined;
-  const detectedGesture = displayPayload?.source?.gesture_event?.gesture_label ?? undefined;
-  const detectedGestureConfidence = displayPayload?.source?.gesture_event?.confidence ?? undefined;
-  const usedModalities = displayPayload?.source?.used_modalities;
   const stepLabel = displayPayload && typeof displayPayload.step_index === "number" && displayPayload.step_count
     ? `${(displayPayload.step_index ?? 0) + 1}/${displayPayload.step_count}`
     : "";
-  const previewActive = previewScenario !== "off";
 
   return (
     <main className="shell cockpit-shell">
@@ -124,8 +120,6 @@ function App() {
           <ModeBadge condition={displayPayload?.condition} />
         </div>
       </header>
-
-      {previewActive && <div className="preview-mode-note">Preview mode · not study data</div>}
 
       <div className="core">
         <MapPanel
@@ -141,20 +135,11 @@ function App() {
         </MapPanel>
 
         <aside className="sidebar">
-          <SideWidgets
-            activeDomain={activeDomain}
-            state={displayState}
-            detectedGesture={detectedGesture}
-            detectedGestureConfidence={detectedGestureConfidence}
-            usedModalities={usedModalities}
-            condition={displayPayload?.condition}
-          />
+          <SideWidgets />
         </aside>
       </div>
 
-      <BottomControls state={displayState} />
-
-      <InteractionPopup payload={displayPayload} state={displayState} />
+      {showPreviewPopup && <InteractionPopup payload={displayPayload} state={displayState} />}
 
       <FeedbackBadge decision={displayState.decision} feedback={displayState.feedback} />
     </main>
@@ -331,10 +316,10 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         domain: "navigation",
         condition: "CAN use both",
         decision: "execute",
-        prompt: "Route wurde uebernommen.",
+        prompt: "Route wurde übernommen.",
         overlay_title: "Route vorgeschlagen",
-        overlay_body: "Neue Route verfuegbar.",
-        accepted_text: "Route uebernommen",
+        overlay_body: "Neue Route verfügbar.",
+        accepted_text: "Route übernommen",
         expected_gesture: "Daumen hoch",
         expected_voice: "Annehmen",
         task_id: "NAV-ACCEPT-ROUTE",
@@ -356,7 +341,7 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         decision: "cancel",
         prompt: "Route wurde abgelehnt.",
         overlay_title: "Route vorgeschlagen",
-        overlay_body: "Neue Route verfuegbar.",
+        overlay_body: "Neue Route verfügbar.",
         rejected_text: "Route abgelehnt",
         expected_gesture: "Swipe",
         expected_voice: "Ablehnen",
@@ -376,10 +361,10 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         ...basePayload,
         domain: "navigation",
         condition: "Gesture only",
-        prompt: "Zweite Route auswaehlen.",
+        prompt: "Zweite Route auswählen.",
         overlay_title: "Route vorgeschlagen",
-        overlay_body: "Alternative Route verfuegbar.",
-        accepted_text: "Route ausgewaehlt",
+        overlay_body: "Alternative Route verfügbar.",
+        accepted_text: "Route ausgewählt",
         expected_gesture: "Zeigen/Tippen",
         task_id: "NAV-SELECT-SECOND",
         source: {
@@ -401,7 +386,7 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         prompt: "Bitte Navigationsauswahl wiederholen.",
         overlay_title: "Navigation",
         overlay_body: "Eingabe unklar.",
-        unclear_text: "Bitte Route bestaetigen oder ablehnen.",
+        unclear_text: "Bitte Route bestätigen oder ablehnen.",
         expected_gesture: "Daumen hoch",
         expected_voice: "Annehmen",
         task_id: "NAV-ACCEPT-ROUTE",
@@ -448,10 +433,10 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         domain: "audio",
         condition: "Gesture only",
         decision: "cancel",
-        prompt: "Song uebersprungen.",
-        overlay_title: "Naechster Song",
+        prompt: "Song übersprungen.",
+        overlay_title: "Nächster Song",
         overlay_body: "City Lights abspielen.",
-        rejected_text: "Song uebersprungen",
+        rejected_text: "Song übersprungen",
         expected_gesture: "Swipe",
         task_id: "AUDIO-NEXT",
         source: {
@@ -469,10 +454,10 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         ...basePayload,
         domain: "audio",
         condition: "Gesture only",
-        prompt: "Lautstaerke angepasst.",
+        prompt: "Lautstärke angepasst.",
         overlay_title: "Musik",
         overlay_body: "Song lauter machen.",
-        accepted_text: "Lautstaerke angepasst",
+        accepted_text: "Lautstärke angepasst",
         expected_gesture: "Handgelenk drehen",
         task_id: "AUDIO-LOUDER",
         source: {
@@ -494,7 +479,7 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         prompt: "Bitte Musikauswahl wiederholen.",
         overlay_title: "Musik",
         overlay_body: "Eingabe unklar.",
-        unclear_text: "Bitte Abspielen, Weiter oder Lautstaerke wiederholen.",
+        unclear_text: "Bitte Abspielen, Weiter oder Lautstärke wiederholen.",
         expected_gesture: "Daumen hoch",
         expected_voice: "Abspielen",
         task_id: "AUDIO-SUGGESTION",
@@ -518,10 +503,10 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         domain: "messages",
         condition: "CAN use both",
         decision: "execute",
-        prompt: "Nachricht geoeffnet.",
+        prompt: "Nachricht geöffnet.",
         overlay_title: "Nachricht von Anna",
         overlay_body: "Neue Nachricht von Anna.",
-        accepted_text: "Nachricht geoeffnet",
+        accepted_text: "Nachricht geöffnet",
         expected_gesture: "Zeigen/Tippen",
         expected_voice: "Öffnen",
         task_id: "MESSAGE-OPEN",
@@ -562,10 +547,10 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         ...basePayload,
         domain: "messages",
         condition: "Gesture only",
-        prompt: "Nachricht bestaetigt.",
+        prompt: "Nachricht bestätigt.",
         overlay_title: "Nachricht von Anna",
         overlay_body: "Neue Nachricht von Anna.",
-        accepted_text: "Bestaetigt",
+        accepted_text: "Bestätigt",
         expected_gesture: "Daumen hoch",
         task_id: "MESSAGE-OPEN",
         source: {
@@ -587,7 +572,7 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         prompt: "Bitte Nachrichteneingabe wiederholen.",
         overlay_title: "Nachrichten",
         overlay_body: "Eingabe unklar.",
-        unclear_text: "Soll die Nachricht geoeffnet oder geschlossen werden?",
+        unclear_text: "Soll die Nachricht geöffnet oder geschlossen werden?",
         expected_gesture: "Zeigen/Tippen",
         expected_voice: "Öffnen",
         task_id: "MESSAGE-OPEN",
@@ -676,12 +661,12 @@ function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload |
         domain: "climate",
         condition: "CAN use both",
         decision: "clarify",
-        prompt: "Bitte Eingabe fuer Sitzheizung wiederholen.",
+        prompt: "Bitte Eingabe für Sitzheizung wiederholen.",
         overlay_title: "Sitzheizung",
         overlay_body: "Eingabe unklar.",
-        unclear_text: "Soll die Sitzheizung erhoeht werden?",
+        unclear_text: "Soll die Sitzheizung erhöht werden?",
         expected_gesture: "Handgelenk drehen",
-        expected_voice: "Waermer",
+        expected_voice: "Wärmer",
         task_id: "CLIMATE-SEAT-WARMER",
         source: { used_modalities: "voice+gesture" },
       };
@@ -843,222 +828,94 @@ function TaskInfoOverlay({
   );
 }
 
-function SideWidgets({
-  activeDomain,
-  state,
-  detectedGesture,
-  detectedGestureConfidence,
-  usedModalities,
-  condition,
-}: {
-  activeDomain?: Domain;
-  state: CockpitState;
-  detectedGesture?: string | null;
-  detectedGestureConfidence?: number | null;
-  usedModalities?: string;
-  condition?: string | null;
-}) {
+function SideWidgets() {
   return (
     <div className="side-widgets">
-      <MusicWidget active={activeDomain === "audio"} state={state} />
-      <MessageWidget active={activeDomain === "messages"} state={state} />
-      <NavigationWidget
-        active={activeDomain === "navigation"}
-        state={state}
-        condition={condition}
-        detectedGesture={detectedGesture}
-      />
-      <CallWidget
-        active={activeDomain === "calls"}
-        state={state}
-        condition={condition}
-        detectedGesture={detectedGesture}
-      />
-      <AmbientWidget
-        state={state}
-        isActive={activeDomain === "ambient_light"}
-        detectedGesture={detectedGesture}
-        detectedGestureConfidence={detectedGestureConfidence}
-        usedModalities={usedModalities}
-        condition={condition}
-      />
-      <ClimateWidget state={state} />
+      <MusicWidget />
+      <MessageWidget />
+      <NavigationWidget />
+      <CallWidget />
+      <AmbientWidget />
+      <ClimateWidget />
     </div>
   );
 }
 
-function NavigationWidget({
-  active,
-  state,
-  condition,
-  detectedGesture,
-}: {
-  active: boolean;
-  state: CockpitState;
-  condition?: string | null;
-  detectedGesture?: string | null;
-}) {
-  const isGesture = condition === "Gesture only";
-  const isCombined = condition === "CAN use both";
-  const progress = state.routeActive ? 75 : 35;
-  const routeAActive = state.routeIndex !== 2;
-  const routeBActive = state.routeIndex === 2;
-  const swipeDetected = active && detectedGesture === "Swipe";
-  const tapDetected = active && (detectedGesture === "Zeigen/Tippen" || detectedGesture === "Zeigen / Tippen");
-  const thumbDetected = active && detectedGesture === "Daumen hoch";
-
+function NavigationWidget() {
   return (
-    <div className={`widget-card navigation-widget ${active ? "active" : ""} ${isGesture ? "gesture" : isCombined ? "combined" : "voice"}`}>
+    <div className="widget-card navigation-widget voice">
       <div className="navigation-widget-main">
         <div className="navigation-widget-header">
           <span className="eyebrow navigation-widget-title">Navigation</span>
-          {active && <span className="widget-mini-badge">{isCombined ? "Voice + Geste" : isGesture ? "Geste" : "Voice"}</span>}
+          <span className="side-widget-badge voice">Route</span>
         </div>
 
-        {isGesture ? (
-          <div className="navigation-route-list" aria-label="Routenauswahl">
-            <div className={`navigation-route-row ${routeAActive ? "selected" : ""}`}>
-              <span>Route A</span>
-              <strong>24 min</strong>
-            </div>
-            <div className={`navigation-route-row ${routeBActive ? "selected" : ""}`}>
-              <span>Route B</span>
-              <strong>29 min</strong>
-            </div>
-          </div>
-        ) : isCombined ? (
-          <>
-            <div className="navigation-route-alert">Neue Route <strong>8 min schneller</strong></div>
-            <div className="navigation-mini-map" aria-hidden>
-              <span className="navigation-map-line primary" />
-              <span className="navigation-map-line secondary" />
-              <span className="navigation-map-pin start" />
-              <span className="navigation-map-pin end" />
-            </div>
-            <div className="navigation-action-row" aria-label="Navigationsentscheidung">
-              <button className="navigation-action accept" type="button">Annehmen</button>
-              <button className="navigation-action decline" type="button">Ablehnen</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="navigation-prompt-row">
-              <span className="navigation-icon" aria-hidden>⌖</span>
-              <strong>Navigation Route starten?</strong>
-            </div>
-            <div className="navigation-progress-row" aria-label={`Navigation ${progress}%`}>
-              <div className="navigation-progress-track">
-                <span style={{ width: `${progress}%` }} />
-              </div>
-              <em>{progress}%</em>
-            </div>
-            <button className="navigation-voice-action" type="button">Annehmen</button>
-          </>
-        )}
-      </div>
-
-      <div className="navigation-gesture-panel" aria-label="Navigationsgesten">
-        {isCombined ? (
-          <>
-            <span className={`navigation-gesture-chip accept ${thumbDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>👍</span>Daumen hoch</span>
-            <span className={`navigation-gesture-chip reject ${swipeDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>↔</span>Swipe</span>
-          </>
-        ) : isGesture ? (
-          <>
-            <span className={`navigation-gesture-chip ${swipeDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>↔</span>Swipe</span>
-            <span className={`navigation-gesture-chip ${tapDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>⌾</span>Tippen</span>
-          </>
-        ) : null}
+        <div className="navigation-route-alert">Neue Route <strong>8 min schneller</strong></div>
+        <div className="navigation-mini-map" aria-hidden>
+          <span className="navigation-map-line primary" />
+          <span className="navigation-map-line secondary" />
+          <span className="navigation-map-pin start" />
+          <span className="navigation-map-pin end" />
+        </div>
+        <div className="navigation-action-row" aria-label="Navigationsoptionen">
+          <button className="navigation-action accept" type="button">Annehmen</button>
+          <button className="navigation-action decline" type="button">Ablehnen</button>
+        </div>
       </div>
     </div>
   );
 }
 
-function CallWidget({
-  active,
-  state,
-  condition,
-  detectedGesture,
-}: {
-  active: boolean;
-  state: CockpitState;
-  condition?: string | null;
-  detectedGesture?: string | null;
-}) {
-  const isCombined = condition === "CAN use both";
-  const callStatus = state.callIncoming ? "Eingehend" : state.callActive ? "Aktiv" : "Mobil";
-  const progress = state.callActive ? Math.min(100, Math.max(30, state.volume)) : 60;
-  const thumbDetected = active && detectedGesture === "Daumen hoch";
-  const rotateDetected = active && detectedGesture === "Handgelenk drehen";
-
+function CallWidget() {
   return (
-    <div className={`widget-card call-widget ${active ? "active" : ""} ${isCombined ? "combined" : "voice"}`}>
+    <div className="widget-card call-widget voice">
       <div className="call-widget-main">
         <div className="call-widget-header">
-          <span className="eyebrow call-widget-title">{state.callIncoming ? "Eingehender Anruf" : "Anruf"}</span>
-          {active && <span className="widget-mini-badge">{isCombined ? "Voice + Geste" : "Voice"}</span>}
+          <span className="eyebrow call-widget-title">Anruf</span>
+          <span className="side-widget-badge success">Mobil</span>
         </div>
 
         <div className="call-info-row">
           <span className="call-phone-circle" aria-hidden>☎</span>
           <div className="call-copy">
             <strong>Max Mustermann</strong>
-            <span>{callStatus}</span>
+            <span>Mobil</span>
           </div>
         </div>
-
-        {isCombined && (
-          <div className="call-progress-row" aria-label={`Anrufpegel ${progress}%`}>
-            <div className="call-progress-track">
-              <span style={{ width: `${progress}%` }} />
-            </div>
-            <em>{progress}%</em>
-          </div>
-        )}
       </div>
 
-      {isCombined ? (
-        <div className="call-gesture-panel" aria-label="Anrufgesten">
-          <span className={`call-gesture-chip ${thumbDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>👍</span>Daumen hoch</span>
-          <span className={`call-gesture-chip ${rotateDetected ? "gesture-chip--detected" : ""}`}><span aria-hidden>↻</span>Drehen</span>
-        </div>
-      ) : (
-        <div className="call-action-row" aria-label="Anrufaktionen">
-          <button className="call-action-button accept" type="button">Annehmen</button>
-          <button className="call-action-button decline" type="button">Ablehnen</button>
-        </div>
-      )}
+      <div className="call-action-row" aria-label="Anrufaktionen">
+        <button className="call-action-button accept" type="button">Annehmen</button>
+        <button className="call-action-button decline" type="button">Ablehnen</button>
+      </div>
     </div>
   );
 }
 
-function MusicWidget({ active, state }: { active: boolean; state: CockpitState }) {
-  const volume = Math.max(0, Math.min(100, state.volume));
-  const trackInitials = state.track
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase())
-    .join("") || "M";
+function MusicWidget() {
+  const volume = 75;
 
   return (
-    <div className={`widget-card music-widget ${active ? "active" : ""}`}>
+    <div className="widget-card music-widget">
       <div className="music-widget-frame">
         <div className="music-widget-main">
-          <span className="eyebrow music-widget-title">Musik</span>
+          <div className="side-widget-header">
+            <span className="eyebrow music-widget-title">Musik</span>
+            <span className="side-widget-badge voice">Audio</span>
+          </div>
           <div className="music-widget-track">
             <div className="music-album-art" aria-hidden>
-              <span>{trackInitials}</span>
+              <span>BL</span>
             </div>
             <div className="music-track-copy">
-              <strong className="widget-title music-track-title">{state.track}</strong>
-              <span className="music-track-meta">{state.audioPlaying ? "Spielt" : "Pausiert"} · Voice</span>
+              <strong className="widget-title music-track-title">Blinding Lights</strong>
+              <span className="music-track-meta">The Weeknd</span>
             </div>
           </div>
         </div>
 
         <div className="music-widget-controls">
-          <div className="music-volume-row" aria-label={`Lautstaerke ${volume}%`}>
+          <div className="music-volume-row" aria-label={`Lautstärke ${volume}%`}>
             <div className="music-volume-track">
               <span className="music-volume-fill" style={{ width: `${volume}%` }} />
             </div>
@@ -1069,10 +926,10 @@ function MusicWidget({ active, state }: { active: boolean; state: CockpitState }
             <button className="music-control-button" type="button" aria-label="Vorheriger Titel">
               <span aria-hidden>‹</span>
             </button>
-            <button className="music-control-button play" type="button" aria-label={state.audioPlaying ? "Pause" : "Abspielen"}>
-              <span aria-hidden>{state.audioPlaying ? "Ⅱ" : "▶"}</span>
+            <button className="music-control-button play" type="button" aria-label="Abspielen">
+              <span aria-hidden>▶</span>
             </button>
-            <button className="music-control-button" type="button" aria-label="Naechster Titel">
+            <button className="music-control-button" type="button" aria-label="Nächster Titel">
               <span aria-hidden>›</span>
             </button>
           </div>
@@ -1082,13 +939,16 @@ function MusicWidget({ active, state }: { active: boolean; state: CockpitState }
   );
 }
 
-function MessageWidget({ active, state }: { active: boolean; state: CockpitState }) {
+function MessageWidget() {
   return (
-    <div className={`widget-card message-widget ${active ? "active" : ""}`}>
-      <span className="eyebrow message-widget-title">Nachrichten</span>
+    <div className="widget-card message-widget">
+      <div className="side-widget-header">
+        <span className="eyebrow message-widget-title">Nachrichten</span>
+        <span className="side-widget-badge gesture">Neu</span>
+      </div>
 
       <div className="message-preview-panel">
-        <strong className="message-preview-title">{state.messageOpen ? "Nachricht offen" : "Neue Nachricht"}</strong>
+        <strong className="message-preview-title">Neue Nachricht</strong>
         <span className="message-preview-sender">Von: <strong>Anna</strong></span>
       </div>
 
@@ -1100,43 +960,20 @@ function MessageWidget({ active, state }: { active: boolean; state: CockpitState
   );
 }
 
-function AmbientWidget({
-  state,
-  isActive,
-  detectedGesture,
-  detectedGestureConfidence,
-  usedModalities,
-  condition,
-}: {
-  state: CockpitState;
-  isActive: boolean;
-  detectedGesture?: string | null;
-  detectedGestureConfidence?: number | null;
-  usedModalities?: string;
-  condition?: string | null;
-}) {
-  const brightness = Math.max(0, Math.min(100, state.ambientBrightness));
-  const colorPosition = state.ambientColor === "Warm" ? 18 : state.ambientColor === "Blau" ? 70 : 45;
-  const isCombined = condition === "CAN use both";
-  const gestureDetected = isActive && (detectedGesture === "Swipe" || detectedGesture === "Handgelenk drehen");
-  const confidenceLabel = typeof detectedGestureConfidence === "number"
-    ? `${Math.round(detectedGestureConfidence * 100)}%`
-    : "";
+function AmbientWidget() {
+  const brightness = 45;
+  const colorPosition = 70;
 
   return (
-    <div className={`widget-card ambient-widget ${isCombined ? "combined" : "gesture"} ${isActive ? "ambient-widget--active" : ""} ${gestureDetected ? "ambient-widget--gesture-detected" : ""}`}>
+    <div className="widget-card ambient-widget gesture">
       <div className="ambient-widget-main">
         <div className="ambient-widget-header">
           <span className="eyebrow ambient-widget-title">Ambientebeleuchtung</span>
-          {gestureDetected ? (
-            <span className="ambient-status-badge detected">Geste erkannt</span>
-          ) : isActive ? (
-            <span className="ambient-status-badge">Aktiv</span>
-          ) : null}
+          <span className="side-widget-badge gesture">Licht</span>
         </div>
 
         <div className="ambient-slider-panel">
-          <div className="ambient-slider-row" aria-label={`Farbe ${state.ambientColor}`}>
+          <div className="ambient-slider-row" aria-label="Farbe Blau">
             <span className="ambient-slider-icon" aria-hidden>◌</span>
             <div className="ambient-slider rgb">
               <span className="ambient-slider-handle" style={{ left: `${colorPosition}%` }} />
@@ -1150,30 +987,24 @@ function AmbientWidget({
             </div>
           </div>
         </div>
-
-        {gestureDetected && (
-          <div className="ambient-detected-readout">
-            <strong>{detectedGesture}</strong>
-            <span>{[usedModalities, confidenceLabel].filter(Boolean).join(" · ")}</span>
-          </div>
-        )}
       </div>
 
       <div className="ambient-gesture-panel" aria-label="Gesten">
-        <span className={`ambient-gesture-chip ${gestureDetected && detectedGesture === "Swipe" ? "gesture-chip--detected" : ""}`}><span aria-hidden>↔</span>Swipe</span>
-        <span className={`ambient-gesture-chip ${gestureDetected && detectedGesture === "Handgelenk drehen" ? "gesture-chip--detected" : ""}`}><span aria-hidden>↻</span>Drehen</span>
+        <span className="ambient-gesture-chip"><span aria-hidden>↔</span>Swipe</span>
+        <span className="ambient-gesture-chip"><span aria-hidden>↻</span>Drehen</span>
       </div>
     </div>
   );
 }
 
-function ClimateWidget({ state }: { state: CockpitState }) {
-  const seatOneLevel = Math.max(1, Math.min(3, state.seatLevel));
-
+function ClimateWidget() {
   return (
     <div className="widget-card climate-widget">
       <div className="climate-widget-main">
-        <span className="eyebrow climate-widget-title">Klimamenü</span>
+        <div className="side-widget-header">
+          <span className="eyebrow climate-widget-title">Sitzheizung</span>
+          <span className="side-widget-badge heat">Stufe 2</span>
+        </div>
 
         <div className="climate-seat-list">
           <div className="climate-seat-row">
@@ -1182,7 +1013,7 @@ function ClimateWidget({ state }: { state: CockpitState }) {
               <span className="climate-seat-icon" aria-hidden>▰</span>
             </div>
             <div className="climate-seat-control">
-              <strong>Stufe {seatOneLevel}</strong>
+              <strong>Stufe 2</strong>
               <span className="climate-stepper" aria-hidden>
                 <span>⌃</span>
                 <span>⌄</span>
@@ -1211,17 +1042,6 @@ function ClimateWidget({ state }: { state: CockpitState }) {
         <span className="climate-gesture-chip"><span aria-hidden>↻</span>Drehen</span>
       </div>
     </div>
-  );
-}
-
-function BottomControls({ state }: { state: CockpitState }) {
-  return (
-    <nav className="bottom-bar" aria-label="Bottom controls">
-      <button className="pill" aria-label="Sitzheizung">🔥 Sitzheizung</button>
-      <button className="pill" aria-label="Ambiente">💡 Ambiente</button>
-      <button className="pill" aria-label="Anruf">📞 Anruf</button>
-      <button className="pill" aria-label="Apps">⋯ Apps</button>
-    </nav>
   );
 }
 
@@ -1272,9 +1092,6 @@ function InteractionPopup({ payload, state }: { payload: WidgetPayload | null; s
           </div>
         </div>
         <div className="popup-body">{body}</div>
-        <div className="popup-footer">
-          <span className="muted">Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
-        </div>
       </div>
     </div>
   );
@@ -1325,7 +1142,7 @@ function CallPopupWidget({ payload, state }: { payload: WidgetPayload; state: Co
         ? "call-popup--declined"
         : "call-popup--incoming";
   const badgeText = isClarify
-    ? "Klaeren"
+    ? "Klären"
     : isAccepted
       ? "Angenommen"
       : isDeclined
@@ -1334,7 +1151,7 @@ function CallPopupWidget({ payload, state }: { payload: WidgetPayload; state: Co
         ? "Anruf"
         : "Aktiv";
   const title = isClarify
-    ? "Eingabe klaeren"
+    ? "Eingabe klären"
     : isAccepted
       ? "Anruf angenommen"
       : isDeclined
@@ -1398,13 +1215,6 @@ function CallPopupWidget({ payload, state }: { payload: WidgetPayload; state: Co
             </button>
           </div>
         )}
-
-        <footer className="call-popup__footer">
-          <span>Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
-          {usedModalities && <span>{usedModalities}</span>}
-          {payload.condition && <span>{payload.condition}</span>}
-          {isAccepted && <span>Naechste Aktion: Auflegen</span>}
-        </footer>
       </section>
     </div>
   );
@@ -1435,32 +1245,32 @@ function NavigationPopupWidget({ payload, state }: { payload: WidgetPayload; sta
           ? "navigation-popup--selected"
           : "navigation-popup--suggested";
   const badgeText = isClarify
-    ? "Klaerung"
+    ? "Klärung"
     : isAccepted
-      ? "Ausgewaehlt"
+      ? "Ausgewählt"
       : isDeclined
         ? "Route"
         : isSelected
-          ? "Ausgewaehlt"
+          ? "Ausgewählt"
           : "Aktiv";
   const title = isClarify
-    ? "Navigation klaeren"
+    ? "Navigation klären"
     : isAccepted
-      ? "Route uebernommen"
+      ? "Route übernommen"
       : isDeclined
         ? "Route abgelehnt"
         : isSelected
-          ? "Route ausgewaehlt"
+          ? "Route ausgewählt"
           : payload.overlay_title || "Route vorgeschlagen";
   const body = isClarify
     ? payload.unclear_text || payload.prompt || "Bitte Auswahl wiederholen."
     : isAccepted
-      ? payload.accepted_text || "Route uebernommen"
+      ? payload.accepted_text || "Route übernommen"
       : isDeclined
         ? payload.rejected_text || "Route abgelehnt"
         : isSelected
-          ? payload.accepted_text || "Route ausgewaehlt"
-          : payload.overlay_body || payload.prompt || "Neue Route verfuegbar.";
+          ? payload.accepted_text || "Route ausgewählt"
+          : payload.overlay_body || payload.prompt || "Neue Route verfügbar.";
 
   return (
     <div className={`interaction-popup navigation-popup-shell ${payload.event_type || ""}`}>
@@ -1514,12 +1324,6 @@ function NavigationPopupWidget({ payload, state }: { payload: WidgetPayload; sta
             </button>
           </div>
         )}
-
-        <footer className="navigation-popup__footer">
-          <span>Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
-          {usedModalities && <span>{usedModalities}</span>}
-          {payload.condition && <span>{payload.condition}</span>}
-        </footer>
       </section>
     </div>
   );
@@ -1546,33 +1350,33 @@ function AudioPopupWidget({ payload, state }: { payload: WidgetPayload; state: C
           ? "audio-popup--playing"
           : "audio-popup--suggested";
   const badgeText = isClarify
-    ? "Klaerung"
+    ? "Klärung"
     : isVolume
-      ? "Lautstaerke"
+      ? "Lautstärke"
       : isSkipped
-        ? "Uebersprungen"
+        ? "Übersprungen"
         : isPlaying
           ? "Spielt"
           : "Vorschlag";
   const title = isClarify
-    ? "Musik klaeren"
+    ? "Musik klären"
     : isVolume
-      ? "Lautstaerke angepasst"
+      ? "Lautstärke angepasst"
       : isSkipped
-        ? "Naechster Song"
+        ? "Nächster Song"
         : isPlaying
           ? "Wiedergabe gestartet"
           : payload.overlay_title || "Musikvorschlag";
   const body = isClarify
     ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
     : isVolume
-      ? payload.accepted_text || "Lautstaerke angepasst"
+      ? payload.accepted_text || "Lautstärke angepasst"
       : isSkipped
-        ? payload.rejected_text || "Song uebersprungen"
+        ? payload.rejected_text || "Song übersprungen"
         : isPlaying
           ? payload.accepted_text || "Wiedergabe gestartet"
           : payload.overlay_body || payload.prompt || "Night Drive abspielen?";
-  const metaText = isVolume ? `${volume}% Lautstaerke` : isPlaying ? "Spielt" : isSkipped ? "Weiter" : "Vorgeschlagen";
+  const metaText = isVolume ? `${volume}% Lautstärke` : isPlaying ? "Spielt" : isSkipped ? "Weiter" : "Vorgeschlagen";
 
   return (
     <div className={`interaction-popup audio-popup-shell ${payload.event_type || ""}`}>
@@ -1594,7 +1398,7 @@ function AudioPopupWidget({ payload, state }: { payload: WidgetPayload; state: C
             <span className="audio-popup__label">{metaText}</span>
             <strong className="audio-popup__track">{trackTitle}</strong>
             <p>{body}</p>
-            <div className={`audio-popup__progress ${isVolume ? "audio-popup__progress--volume" : ""}`} aria-label={isVolume ? `Lautstaerke ${volume}%` : `Wiedergabe ${progress}%`}>
+            <div className={`audio-popup__progress ${isVolume ? "audio-popup__progress--volume" : ""}`} aria-label={isVolume ? `Lautstärke ${volume}%` : `Wiedergabe ${progress}%`}>
               <span style={{ width: `${isVolume ? volume : progress}%` }} />
             </div>
             <div className="audio-popup__controls" aria-label="Musiksteuerung">
@@ -1627,12 +1431,6 @@ function AudioPopupWidget({ payload, state }: { payload: WidgetPayload; state: C
             </button>
           </div>
         )}
-
-        <footer className="audio-popup__footer">
-          <span>Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
-          {usedModalities && <span>{usedModalities}</span>}
-          {payload.condition && <span>{payload.condition}</span>}
-        </footer>
       </section>
     </div>
   );
@@ -1656,33 +1454,33 @@ function MessagesPopupWidget({ payload, state }: { payload: WidgetPayload; state
           ? "messages-popup--closed"
           : "messages-popup--new";
   const badgeText = isClarify
-    ? "Klaerung"
+    ? "Klärung"
     : isConfirmed
-      ? "Bestaetigt"
+      ? "Bestätigt"
       : isOpened
-        ? "Geoeffnet"
+        ? "Geöffnet"
         : isClosed
           ? "Geschlossen"
           : "Neu";
   const title = isClarify
-    ? "Nachricht klaeren"
+    ? "Nachricht klären"
     : isConfirmed
-      ? "Bestaetigt"
+      ? "Bestätigt"
       : isOpened
-        ? "Nachricht geoeffnet"
+        ? "Nachricht geöffnet"
         : isClosed
           ? "Nachricht geschlossen"
           : payload.overlay_title || "Neue Nachricht";
   const body = isClarify
     ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
     : isConfirmed
-      ? payload.accepted_text || "Bestaetigt"
+      ? payload.accepted_text || "Bestätigt"
       : isOpened
-        ? payload.accepted_text || "Nachricht geoeffnet"
+        ? payload.accepted_text || "Nachricht geöffnet"
         : isClosed
           ? payload.rejected_text || "Nachricht geschlossen"
           : payload.overlay_body || payload.prompt || "Neue Nachricht von Anna.";
-  const messageStatus = isClosed ? "Geschlossen" : isOpened ? "Geoeffnet" : isConfirmed ? "Bestaetigt" : "Neue Nachricht";
+  const messageStatus = isClosed ? "Geschlossen" : isOpened ? "Geöffnet" : isConfirmed ? "Bestätigt" : "Neue Nachricht";
 
   return (
     <div className={`interaction-popup messages-popup-shell ${payload.event_type || ""}`}>
@@ -1729,12 +1527,6 @@ function MessagesPopupWidget({ payload, state }: { payload: WidgetPayload; state
             </button>
           </div>
         )}
-
-        <footer className="messages-popup__footer">
-          <span>Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
-          {usedModalities && <span>{usedModalities}</span>}
-          {payload.condition && <span>{payload.condition}</span>}
-        </footer>
       </section>
     </div>
   );
@@ -1760,20 +1552,20 @@ function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state:
           ? "climate-popup--adjusting"
           : "climate-popup--active";
   const badgeText = isClarify
-    ? "Klaerung"
+    ? "Klärung"
     : isSuccess
       ? "Angepasst"
       : isCancelled
         ? "Abgebrochen"
         : isAdjusting
-          ? "Waermer"
+          ? "Wärmer"
           : "Aktiv";
   const title = isClarify
-    ? "Sitzheizung klaeren"
+    ? "Sitzheizung klären"
     : isSuccess
       ? "Sitzheizung aktualisiert"
       : isCancelled
-        ? "Aenderung abgebrochen"
+        ? "Änderung abgebrochen"
         : isAdjusting
           ? "Sitzheizung angepasst"
           : payload.overlay_title || "Sitzheizung";
@@ -1782,10 +1574,10 @@ function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state:
     : isSuccess
       ? payload.accepted_text || "Sitzheizung aktualisiert"
       : isCancelled
-        ? payload.rejected_text || "Aenderung abgebrochen"
+        ? payload.rejected_text || "Änderung abgebrochen"
         : isAdjusting
           ? payload.accepted_text || "Sitzheizung angepasst"
-          : payload.overlay_body || payload.prompt || "Sitz 1 wird waermer gestellt.";
+          : payload.overlay_body || payload.prompt || "Sitz 1 wird wärmer gestellt.";
 
   const renderHeatLevels = (level: number) => (
     <span className="climate-popup__heat-levels" aria-hidden>
@@ -1812,7 +1604,7 @@ function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state:
           </div>
 
           <div className="climate-popup__seat-panel">
-            <span className="climate-popup__label">{isAdjusting ? "Temperatur erhoeht" : "Klimaeinstellung"}</span>
+            <span className="climate-popup__label">{isAdjusting ? "Temperatur erhöht" : "Klimaeinstellung"}</span>
             <strong>{body}</strong>
 
             <div className="climate-popup__seat-row">
@@ -1855,12 +1647,6 @@ function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state:
             </button>
           </div>
         )}
-
-        <footer className="climate-popup__footer">
-          <span>Erwartet: {payload.expected_voice ?? payload.expected_gesture ?? "-"}</span>
-          {usedModalities && <span>{usedModalities}</span>}
-          {payload.condition && <span>{payload.condition}</span>}
-        </footer>
       </section>
     </div>
   );
@@ -1868,7 +1654,6 @@ function ClimatePopupWidget({ payload, state }: { payload: WidgetPayload; state:
 
 function AmbientPopupWidget({ payload, state }: { payload: WidgetPayload; state: CockpitState }) {
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
-  const usedModalities = payload.source?.used_modalities;
   const isSwipe = gestureLabel === "Swipe";
   const isRotate = gestureLabel === "Handgelenk drehen";
   const isConfirmed = payload.decision === "execute" || gestureLabel === "Daumen hoch";
@@ -1926,12 +1711,6 @@ function AmbientPopupWidget({ payload, state }: { payload: WidgetPayload; state:
           <span className={`ambient-popup-chip ${isSwipe ? "gesture-chip--detected" : ""}`}><span aria-hidden>↔</span>Swipe</span>
           <span className={`ambient-popup-chip ${isRotate ? "gesture-chip--detected" : ""}`}><span aria-hidden>↻</span>Drehen</span>
         </div>
-
-        <footer className="ambient-popup-footer">
-          <span>Erwartet: {payload.expected_gesture ?? "-"}</span>
-          {usedModalities && <span>{usedModalities}</span>}
-          {payload.condition && <span>{payload.condition}</span>}
-        </footer>
       </section>
     </div>
   );
@@ -1951,7 +1730,7 @@ function taskText(payload: WidgetPayload | null, completed: boolean, stepLabel: 
     return "Starte einen Trial in der Operator-GUI.";
   }
   if (completed) {
-    return "Szenario abgeschlossen. Warte auf die naechste Aufgabe.";
+    return "Szenario abgeschlossen. Warte auf die nächste Aufgabe.";
   }
   const prefix = stepLabel ? `${stepLabel}: ` : "";
   return `${prefix}${payload.prompt || payload.overlay_body || "Aktiver Schritt"}`;
@@ -1959,7 +1738,7 @@ function taskText(payload: WidgetPayload | null, completed: boolean, stepLabel: 
 
 function guidanceFor(payload: WidgetPayload | null): string {
   if (!payload) {
-    return "Der Operator startet die naechste Aufgabe.";
+    return "Der Operator startet die nächste Aufgabe.";
   }
   if (payload.condition === "Voice only") {
     return "Sprache verwenden. Gesten werden nicht gewertet.";
@@ -1968,7 +1747,7 @@ function guidanceFor(payload: WidgetPayload | null): string {
     return "EMG-Gesten verwenden. Sprache wird nicht gewertet.";
   }
   if (payload.condition === "CAN use both") {
-    return "Sprache, Geste oder beides moeglich.";
+    return "Sprache, Geste oder beides möglich.";
   }
   return "Warte auf die aktive Study-Condition.";
 }
@@ -1990,7 +1769,7 @@ function applyPayload(current: CockpitState, payload: WidgetPayload): CockpitSta
       activePayload: payload,
       completed: true,
       decision,
-      feedback: "Szenario abgeschlossen. Warte auf die naechste Aufgabe.",
+      feedback: "Szenario abgeschlossen. Warte auf die nächste Aufgabe.",
     };
   }
 
@@ -2007,7 +1786,7 @@ function applyPayload(current: CockpitState, payload: WidgetPayload): CockpitSta
     return {
       ...initializeForStep(updated, payload),
       decision,
-      feedback: payload.prompt || "Naechster Schritt aktiv.",
+      feedback: payload.prompt || "Nächster Schritt aktiv.",
     };
   }
 

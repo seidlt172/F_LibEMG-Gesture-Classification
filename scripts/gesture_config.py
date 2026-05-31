@@ -20,8 +20,8 @@ GESTURE_DISPLAY_NAMES = {
 
 GESTURE_COLLECTION_CUES = {
     0: "alle Finger locker eingeklappt, Hand entspannt am Lenkrad",
-    1: "Faust schliessen, nur Daumen gestreckt nach oben",
-    2: "alle Finger zusammen, Handgelenk zuegig seitlich schwenken",
+    1: "Faust schließen, nur Daumen gestreckt nach oben",
+    2: "alle Finger zusammen, Handgelenk zügig seitlich schwenken",
     3: "Unterarm rotieren (Pro/Supination), Finger locker gestreckt",
     4: "nur Zeigefinger gestreckt, restliche Finger eingekrallt",
 }
@@ -33,8 +33,8 @@ COLLECTION_GESTURES = {
 
 GESTURE_DESCRIPTIONS = {
     0: "Alle Finger locker eingeklappt,\nHand entspannt am Lenkrad",
-    1: "Faust schliessen,\nnur Daumen gestreckt nach oben",
-    2: "Alle Finger zusammen,\nHandgelenk zuegig seitlich schwenken",
+    1: "Faust schließen,\nnur Daumen gestreckt nach oben",
+    2: "Alle Finger zusammen,\nHandgelenk zügig seitlich schwenken",
     3: "Unterarm rotieren (Pro/Supination),\nFinger locker gestreckt",
     4: "Nur Zeigefinger gestreckt,\nrestliche Finger eingekrallt",
 }
