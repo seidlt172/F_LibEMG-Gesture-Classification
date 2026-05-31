@@ -46,52 +46,263 @@ def play_tick():
     except Exception:
         pass
 
+try:
+    import cv2
+    from PIL import Image, ImageTk
+    _CV2_AVAILABLE = True
+except ImportError:
+    _CV2_AVAILABLE = False
+
+# ── Video paths ────────────────────────────────────────────────────────────────
+
+_ANIM_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "animations")
+
+VIDEO_PATHS = {
+    0: os.path.join(_ANIM_DIR, "gesture_0_rest.mp4"),
+    1: os.path.join(_ANIM_DIR, "gesture_1_daumen.mp4"),
+    2: os.path.join(_ANIM_DIR, "gesture_2_swipe.mp4"),
+    3: os.path.join(_ANIM_DIR, "gesture_3_drehen.mp4"),
+    4: os.path.join(_ANIM_DIR, "gesture_4_zeigen.mp4"),
+}
+
+_WIDGET_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "widgets")
+
+# Widget videos per gesture — (video_path, description)
+WIDGET_SLIDES = {
+    0: [
+        (None, "Diese Geste hat keine direkte Funktion — sie signalisiert dem System, dass keine Eingabe gemacht wird."),
+    ],
+    1: [
+        (os.path.join(_WIDGET_DIR, "gesture_1_daumen_1.mp4"), "Musikvorschlag annehmen"),
+        (os.path.join(_WIDGET_DIR, "gesture_1_daumen_2.mp4"), "Zum Tagfahrmodus wechseln bestätigen"),
+        (os.path.join(_WIDGET_DIR, "gesture_1_daumen_3.mp4"), "Eingehenden Anruf annehmen"),
+        (os.path.join(_WIDGET_DIR, "gesture_1_daumen_4.mp4"), "Routenvorschlag annehmen"),
+    ],
+    2: [
+        (os.path.join(_WIDGET_DIR, "gesture_2_swipe_1.mp4"), "Zum nächsten Song springen"),
+        (os.path.join(_WIDGET_DIR, "gesture_2_swipe_2.mp4"), "Im Klimamenü navigieren"),
+        (os.path.join(_WIDGET_DIR, "gesture_2_swipe_3.mp4"), "Zwischen Routenoptionen wechseln"),
+        (os.path.join(_WIDGET_DIR, "gesture_2_swipe_4.mp4"), "Zwischen Farben bei der Ambientebeleuchtung wechseln"),
+    ],
+    3: [
+        (os.path.join(_WIDGET_DIR, "gesture_3_drehen_1.mp4"), "Sitzheizung regulieren"),
+        (os.path.join(_WIDGET_DIR, "gesture_3_drehen_2.mp4"), "Helligkeit der Ambientebeleuchtung regulieren"),
+        (os.path.join(_WIDGET_DIR, "gesture_3_drehen_3.mp4"), "Lautstärke regulieren"),
+    ],
+    4: [
+        (os.path.join(_WIDGET_DIR, "gesture_4_zeigen_1.mp4"), "Musik abspielen"),
+        (os.path.join(_WIDGET_DIR, "gesture_4_zeigen_2.mp4"), "Tankstelle auswählen"),
+    ],
+}
+
+# ── Video player helper ────────────────────────────────────────────────────────
+
+class VideoPlayer:
+    """
+    Plays an MP4 once on a tkinter Canvas, then holds the last frame.
+    Call start(gesture_id) to begin playback.
+    Call stop() to release resources.
+    """
+    def __init__(self, canvas, placeholder_text_id, icon_id, root, fixed_ratio=None):
+        self.canvas           = canvas
+        self.placeholder_id   = placeholder_text_id
+        self.icon_id          = icon_id
+        self.root             = root
+        self._cap             = None
+        self._photo           = None   # must keep reference to avoid GC
+        self._image_id        = None
+        self._playing         = False
+        self._fps             = 30
+        self._frame_delay_ms  = 33
+        self._token           = 0     # invalidates stale after() callbacks
+        self._fixed_ratio     = fixed_ratio  # None=use canvas size, float=enforce ratio
+
+    def start(self, gesture_id):
+        """Start playing the video for gesture_id. Safe to call from any thread."""
+        self.root.after(0, lambda: self._start_on_main(gesture_id))
+
+    def start_path(self, path):
+        """Start playing a video directly from a file path."""
+        self.root.after(0, lambda: self._start_on_main_path(path))
+
+    def _start_on_main(self, gesture_id):
+        if not _CV2_AVAILABLE:
+            return
+        path = VIDEO_PATHS.get(gesture_id, "")
+        if not path or not os.path.exists(path):
+            return
+        self._load_and_play(path)
+
+    def _start_on_main_path(self, path):
+        if not _CV2_AVAILABLE:
+            return
+        if not path or not os.path.exists(path):
+            return
+        self._load_and_play(path)
+
+    def _load_and_play(self, path):
+
+        # Stop any running playback
+        self._playing = False
+        self._token  += 1
+        if self._cap:
+            self._cap.release()
+
+        self._cap = cv2.VideoCapture(path)
+        if not self._cap.isOpened():
+            return
+
+        fps = self._cap.get(cv2.CAP_PROP_FPS)
+        if not fps or fps <= 0:
+            fps = 24
+        self._frame_delay_ms = int(1000 / fps)
+
+        # Enforce ratio if specified (for right/widget canvas only)
+        if self._fixed_ratio is not None:
+            self.canvas.update_idletasks()
+            w = self.canvas.winfo_width()
+            if w < 10:
+                w = 700
+            h = int(w / self._fixed_ratio)
+            self.canvas.config(height=h)
+
+        # Hide placeholder and icon text
+        self.canvas.itemconfig(self.placeholder_id, text="")
+        self.canvas.itemconfig(self.icon_id, text="")
+
+        self._playing = True
+        self._last_frame_time = time.time()
+        token = self._token
+        self._schedule_frame(token)
+
+    def _schedule_frame(self, token):
+        if token != self._token or not self._playing:
+            return
+        self.root.after(self._frame_delay_ms,
+                        lambda: self._show_frame(token))
+
+    def _show_frame(self, token):
+        if token != self._token:
+            return
+
+        if self._cap is None or not self._cap.isOpened():
+            return
+
+        ret, frame = self._cap.read()
+
+        if not ret:
+            # Video finished — hold last frame, stop scheduling
+            self._playing = False
+            return
+
+        # Get canvas dimensions
+        if self._fixed_ratio is not None:
+            # ratio-enforced canvas: width dynamic, height = width / ratio
+            w = self.canvas.winfo_width()
+            if w < 10:
+                w = 700
+            h = int(w / self._fixed_ratio)
+        else:
+            # fixed square canvas: use configured width/height
+            try:
+                w = int(self.canvas.cget("width"))
+                h = int(self.canvas.cget("height"))
+            except Exception:
+                w, h = 320, 320
+            if w < 10:
+                w = 320
+            if h < 10:
+                h = 320
+
+        frame_rgb     = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_resized = cv2.resize(frame_rgb, (w, h),
+                                   interpolation=cv2.INTER_LINEAR)
+
+        img   = Image.fromarray(frame_resized)
+        photo = ImageTk.PhotoImage(image=img)
+        self._photo = photo  # keep reference
+
+        if self._image_id is None:
+            self._image_id = self.canvas.create_image(
+                0, 0, anchor="nw", image=photo)
+        else:
+            self.canvas.itemconfig(self._image_id, image=photo)
+
+        # Schedule next frame
+        self._schedule_frame(token)
+
+    def stop(self):
+        self._playing = False
+        self._token  += 1
+        if self._cap:
+            self._cap.release()
+            self._cap = None
+
+    def reset(self):
+        """Stop and clear canvas back to placeholder."""
+        self.stop()
+        if self._image_id is not None:
+            self.canvas.delete(self._image_id)
+            self._image_id = None
+        self._photo = None
+        self.canvas.itemconfig(self.placeholder_id,
+                               text="[ Gesten-Anim\n   1 : 1 ]")
+        self.canvas.itemconfig(self.icon_id, text="")
+
 from libemg.feature_extractor import FeatureExtractor
 from libemg.emg_predictor import EMGClassifier
 from libemg.utils import get_windows
 
-try:
-    from scripts.gesture_config import GESTURE_DESCRIPTIONS
-    from scripts.gesture_config import GESTURE_DISPLAY_NAMES as GESTURES
-except ImportError:
-    from gesture_config import GESTURE_DESCRIPTIONS
-    from gesture_config import GESTURE_DISPLAY_NAMES as GESTURES
-
 # ── Settings ──────────────────────────────────────────────────────────────────
 
+GESTURES = {
+    0: "Rest",
+    1: "Daumen hoch",
+    2: "Swipe",
+    3: "Handgelenk drehen",
+    4: "Zeigen / Tippen",
+}
+
 GESTURE_ICONS = {
-    0: "✋",
-    1: "👍",
-    2: "👋",
-    3: "🔄",
-    4: "☝️",
+    0: "",
+    1: "",
+    2: "",
+    3: "",
+    4: "",
+}
+
+GESTURE_DESCRIPTIONS = {
+    0: "Alle Finger locker eingeklappt,\nHand entspannt am Lenkrad",
+    1: "Faust schließen,\nnur Daumen gestreckt nach oben",
+    2: "Alle Finger zusammen,\nHandgelenk zügig seitlich schwenken",
+    3: "Unterarm rotieren (Pro/Supination),\nFinger locker gestreckt",
+    4: "Nur Zeigefinger gestreckt,\nrestliche Finger eingekrallt",
 }
 
 GESTURE_EXAMPLES = {
     0: [
-        "Ruhezustand — keine Aktion wird ausgelöst",
-        "System wartet auf deine nächste Geste",
-        "Keine Eingabe — Hintergrundmodus aktiv",
+        "Diese Geste hat keine direkte Funktion — sie signalisiert dem System, dass keine Eingabe gemacht wird.",
     ],
     1: [
-        "Eingehenden Anruf annehmen",
-        "Navigationsziel bestätigen",
-        "Musikwiedergabe starten",
+        "Daumen hoch — Anwendungsfall 1",
+        "Daumen hoch — Anwendungsfall 2",
+        "Daumen hoch — Anwendungsfall 3",
+        "Daumen hoch — Anwendungsfall 4",
     ],
     2: [
-        "Zum nächsten Song wechseln",
-        "Nächste Route in der Navigation",
-        "Benachrichtigung wegwischen",
+        "Zum nächsten Song springen",
+        "Im Klimamenü navigieren",
+        "Zwischen Routenoptionen wechseln",
+        "Zwischen Farben bei der Ambientebeleuchtung wechseln",
     ],
     3: [
-        "Lautstärke regulieren",
-        "Klimaanlage anpassen",
-        "Beleuchtung dimmen oder heller stellen",
+        "Handgelenk drehen — Anwendungsfall 1",
+        "Handgelenk drehen — Anwendungsfall 2",
+        "Handgelenk drehen — Anwendungsfall 3",
     ],
     4: [
-        "Navigationskarte vergrößern",
-        "Menüpunkt auswählen",
-        "Details zu einem POI anzeigen",
+        "Zeigen / Tippen — Anwendungsfall 1",
+        "Zeigen / Tippen — Anwendungsfall 2",
     ],
 }
 
@@ -375,13 +586,8 @@ class CalibGUI:
         self.root = root
         self.root.title("EMG Kalibrierung")
         self.root.configure(bg=BG)
-        self.root.update_idletasks()
-        screen_w = self.root.winfo_screenwidth()
-        screen_h = self.root.winfo_screenheight()
-        win_w    = min(1200, screen_w - 40)
-        win_h    = min(900,  screen_h - 80)   # leave room for macOS menubar+dock
-        self.root.geometry(f"{win_w}x{win_h}")
-        self.root.minsize(1000, win_h)
+        self.root.geometry("1000x800")
+        self.root.minsize(1000, 800)
         self.root.resizable(True, True)
 
         self._pulse_val  = 0
@@ -396,25 +602,36 @@ class CalibGUI:
         self._update()
 
     def _build_fonts(self):
-        self.f_title   = tkfont.Font(family="Helvetica Neue", size=14, weight="bold")
-        self.f_sub     = tkfont.Font(family="Helvetica Neue", size=10)
-        self.f_tile    = tkfont.Font(family="Helvetica Neue", size=13, weight="bold")
-        self.f_gesture = tkfont.Font(family="Helvetica Neue", size=30, weight="bold")
-        self.f_anim    = tkfont.Font(family="Helvetica Neue", size=52)
-        self.f_action  = tkfont.Font(family="Helvetica Neue", size=18, weight="bold")
-        self.f_timer   = tkfont.Font(family="Helvetica Neue", size=52, weight="bold")
-        self.f_example = tkfont.Font(family="Helvetica Neue", size=18, weight="bold")
+        self.f_title   = tkfont.Font(family="Helvetica Neue", size=12, weight="bold")
+        self.f_sub     = tkfont.Font(family="Helvetica Neue", size=9)
+        self.f_tile    = tkfont.Font(family="Helvetica Neue", size=10, weight="bold")
+        self.f_gesture = tkfont.Font(family="Helvetica Neue", size=18, weight="bold")
+        self.f_anim    = tkfont.Font(family="Helvetica Neue", size=30)
+        self.f_action  = tkfont.Font(family="Helvetica Neue", size=12, weight="bold")
+        self.f_timer   = tkfont.Font(family="Helvetica Neue", size=30, weight="bold")
+        self.f_example = tkfont.Font(family="Helvetica Neue", size=12, weight="bold")
         self.f_exlabel = tkfont.Font(family="Helvetica Neue", size=9)
-        self.f_rep     = tkfont.Font(family="Helvetica Neue", size=10)
-        self.f_btn     = tkfont.Font(family="Helvetica Neue", size=13, weight="bold")
-        self.f_header  = tkfont.Font(family="Helvetica Neue", size=11, weight="bold")
+        self.f_rep     = tkfont.Font(family="Helvetica Neue", size=9)
+        self.f_btn     = tkfont.Font(family="Helvetica Neue", size=11, weight="bold")
+        self.f_header  = tkfont.Font(family="Helvetica Neue", size=10, weight="bold")
 
     def _build_ui(self):
-        pad = 20
+        CONTENT_W = 840  # fixed content width, centered regardless of window size
+
+        def centered(parent, **kwargs):
+            """Returns a fixed-width centered frame inside parent."""
+            outer = tk.Frame(parent, bg=BG)
+            outer.pack(fill="x", **kwargs)
+            inner = tk.Frame(outer, bg=BG, width=CONTENT_W)
+            inner.pack(anchor="center")
+            inner.pack_propagate(False)
+            return inner
 
         # Header
-        header = tk.Frame(self.root, bg=BG, pady=14)
-        header.pack(fill="x", padx=pad)
+        h_outer = tk.Frame(self.root, bg=BG, pady=8)
+        h_outer.pack(fill="x")
+        header = tk.Frame(h_outer, bg=BG, width=CONTENT_W)
+        header.pack(anchor="center")
         tk.Label(header, text="EMG Kalibrierung",
                  font=self.f_title, bg=BG, fg=TEXT_PRI).pack(side="left")
         self.battery_lbl = tk.Label(header, text="🔋 —",
@@ -425,58 +642,109 @@ class CalibGUI:
         self.step_label.pack(side="right")
 
         # Progress bar
-        prog_bg = tk.Frame(self.root, bg=BORDER, height=6)
-        prog_bg.pack(fill="x", padx=pad)
+        pb_outer = tk.Frame(self.root, bg=BG)
+        pb_outer.pack(fill="x")
+        pb_inner = tk.Frame(pb_outer, bg=BG, width=CONTENT_W)
+        pb_inner.pack(anchor="center")
+        prog_bg = tk.Frame(pb_inner, bg=BORDER, height=4)
+        prog_bg.pack(fill="x")
         prog_bg.pack_propagate(False)
-        self.prog_bar = tk.Frame(prog_bg, bg=ACCENT, height=6)
+        self.prog_bar = tk.Frame(prog_bg, bg=ACCENT, height=4)
         self.prog_bar.place(x=0, y=0, relheight=1.0, relwidth=0.0)
 
-        tk.Frame(self.root, bg=BG, height=14).pack()
+        tk.Frame(self.root, bg=BG, height=8).pack()
 
-        # Gesture tiles
-        tiles_row = tk.Frame(self.root, bg=BG)
-        tiles_row.pack(fill="x", padx=pad)
+        # Gesture tiles — centered at 840px, equal width
+        tiles_outer = tk.Frame(self.root, bg=BG)
+        tiles_outer.pack(fill="x")
+
+        # Use a centering trick: left+right spacers with equal weight
+        tiles_center = tk.Frame(tiles_outer, bg=BG)
+        tiles_center.pack(fill="x")
+        tiles_center.columnconfigure(0, weight=1)
+        tiles_center.columnconfigure(1, weight=0, minsize=CONTENT_W)
+        tiles_center.columnconfigure(2, weight=1)
+
+        tiles_fixed = tk.Frame(tiles_center, bg=BG)
+        tiles_fixed.grid(row=0, column=1, sticky="ew")
+        tiles_fixed.columnconfigure(tuple(range(5)), weight=1, uniform="tile")
+
         self.tiles = {}
         for gid, gname in GESTURES.items():
-            tile = tk.Frame(tiles_row, bg=TILE_DIMMED,
+            tile = tk.Frame(tiles_fixed, bg=TILE_DIMMED,
                             highlightbackground=BORDER,
-                            highlightthickness=1, padx=10, pady=8)
-            tile.pack(side="left", expand=True, fill="x",
-                      padx=(0, 8 if gid < 4 else 0))
-            ilbl = tk.Label(tile, text=GESTURE_ICONS[gid],
-                            font=self.f_sub, bg=TILE_DIMMED, fg=TEXT_DIM)
-            ilbl.pack()
+                            highlightthickness=1, padx=8, pady=18)
+            tile.grid(row=0, column=gid, sticky="nsew",
+                      padx=(0, 6 if gid < 4 else 0))
+            ilbl = tk.Label(tile, text="", bg=TILE_DIMMED)
             nlbl = tk.Label(tile, text=gname, font=self.f_tile,
                             bg=TILE_DIMMED, fg=TEXT_DIM,
-                            wraplength=130, justify="center")
-            nlbl.pack(pady=(2, 4))
+                            wraplength=200, justify="center", anchor="center")
+            nlbl.pack(expand=True, fill="x", pady=(2, 2))
             dots_f = tk.Frame(tile, bg=TILE_DIMMED)
             dots_f.pack()
             dots = []
             for _ in range(N_CALIB_REPS):
-                d = tk.Frame(dots_f, bg=BORDER, width=8, height=8)
+                d = tk.Frame(dots_f, bg=BORDER, width=7, height=7)
                 d.pack(side="left", padx=2)
                 d.pack_propagate(False)
                 dots.append(d)
             self.tiles[gid] = {"frame": tile, "icon": ilbl,
                                 "name": nlbl, "dots": dots}
 
-        tk.Frame(self.root, bg=BG, height=14).pack()
-        tk.Frame(self.root, bg=BORDER, height=1).pack(fill="x", padx=pad)
-        tk.Frame(self.root, bg=BG, height=14).pack()
+        tk.Frame(self.root, bg=BG, height=8).pack()
+        div_container = tk.Frame(self.root, bg=BG)
+        div_container.pack(fill="x")
+        div_inner = tk.Frame(div_container, bg=BG, width=CONTENT_W)
+        div_inner.pack(anchor="center")
+        tk.Frame(div_inner, bg=BORDER, height=1).pack(fill="x")
+        tk.Frame(self.root, bg=BG, height=8).pack()
 
-        # Main area — two equal columns via grid
-        self._main = tk.Frame(self.root, bg=BG)
-        self._main.pack(fill="both", expand=True, padx=pad, pady=(0, pad))
-        self._main.columnconfigure(0, weight=2, uniform="col")
-        self._main.columnconfigure(1, weight=3, uniform="col")
+        # Scrollable main area
+        scroll_container = tk.Frame(self.root, bg=BG)
+        scroll_container.pack(fill="both", expand=True)
+
+        self._canvas_scroll = tk.Canvas(scroll_container, bg=BG,
+                                        highlightthickness=0)
+        scrollbar = tk.Scrollbar(scroll_container, orient="vertical",
+                                 command=self._canvas_scroll.yview,
+                                 width=0)
+        self._canvas_scroll.configure(yscrollcommand=scrollbar.set)
+        self._canvas_scroll.pack(side="left", fill="both", expand=True)
+
+        # Fixed-width centered content frame inside scroll canvas
+        self._main_outer = tk.Frame(self._canvas_scroll, bg=BG)
+        self._scroll_window = self._canvas_scroll.create_window(
+            (0, 0), window=self._main_outer, anchor="nw")
+
+        def _on_frame_configure(e):
+            self._canvas_scroll.configure(
+                scrollregion=self._canvas_scroll.bbox("all"))
+
+        def _on_canvas_configure(e):
+            self._canvas_scroll.itemconfig(
+                self._scroll_window, width=e.width)
+
+        self._main_outer.bind("<Configure>", _on_frame_configure)
+        self._canvas_scroll.bind("<Configure>", _on_canvas_configure)
+
+        def _on_mousewheel(e):
+            self._canvas_scroll.yview_scroll(int(-1*(e.delta/120)), "units")
+        self._canvas_scroll.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # Center the actual content at fixed 840px
+        self._main = tk.Frame(self._main_outer, bg=BG, width=CONTENT_W)
+        self._main.pack(anchor="center", pady=(0, 20))
+
+        self._main.columnconfigure(0, weight=0, minsize=352)
+        self._main.columnconfigure(1, weight=1)
         self._main.rowconfigure(0, weight=1)
         main = self._main
 
         # Left card
         left = tk.Frame(main, bg=BG_CARD,
                         highlightbackground=BORDER,
-                        highlightthickness=1, padx=24, pady=18)
+                        highlightthickness=1, padx=16, pady=10)
         left.grid(row=0, column=0, sticky="nsew")
 
         self.phase_lbl = tk.Label(left, text="",
@@ -484,49 +752,57 @@ class CalibGUI:
                                   fg=TEXT_SEC, anchor="w")
         self.phase_lbl.pack(fill="x")
 
-        tk.Frame(left, bg=BG_CARD, height=6).pack()
+        tk.Frame(left, bg=BG_CARD, height=2).pack()
 
-        # 1:1 animation placeholder — square canvas
+        # 1:1 animation canvas — fixed 280x280, no resize
         self.anim_canvas = tk.Canvas(left, bg=BG_TILE,
                                      highlightbackground=BORDER,
                                      highlightthickness=1,
-                                     width=160, height=160)
-        self.anim_canvas.pack(pady=(0, 4))
+                                     width=320, height=320)
+        self.anim_canvas.pack(pady=(0, 3), expand=False)
         self._anim_canvas_text = self.anim_canvas.create_text(
-            80, 80, text="[ Gesten-Animation\n      1 : 1 ]",
+            160, 160, text="",
             font=self.f_sub, fill=TEXT_DIM, justify="center")
         self.anim_icon_id = self.anim_canvas.create_text(
-            80, 80, text="", font=self.f_anim, fill=ACCENT)
-        # Keep canvas square on resize
-        left.bind("<Configure>", self._on_left_resize)
+            160, 160, text="", font=self.f_anim, fill=ACCENT)
+        # no resize binding — fixed size
+
+        # Video player — plays once per gesture, holds last frame
+        self._video = VideoPlayer(
+            self.anim_canvas,
+            self._anim_canvas_text,
+            self.anim_icon_id,
+            self.root,
+        )
+        self._video_gesture = None
 
         self.gname_lbl = tk.Label(left, text="—",
                                   font=self.f_gesture, bg=BG_CARD,
                                   fg=TEXT_PRI, anchor="center")
         self.gname_lbl.pack(fill="x")
 
-        tk.Frame(left, bg=BORDER, height=1).pack(fill="x", pady=12)
+        tk.Frame(left, bg=BORDER, height=1).pack(fill="x", pady=5)
 
-        # Action label + big timer, centered
+        # Action label + timer inline in same row
         action_area = tk.Frame(left, bg=BG_CARD)
-        action_area.pack()
-        self.action_lbl = tk.Label(action_area, text="",
-                                   font=self.f_action, bg=BG_CARD, fg=TEXT_SEC)
-        self.action_lbl.pack()
+        action_area.pack(pady=(4, 0))
         self.tval_lbl = tk.Label(action_area, text="",
                                  font=self.f_timer, bg=BG_CARD, fg=TEXT_PRI)
-        self.tval_lbl.pack(pady=(2, 0))
+        self.tval_lbl.pack(side="left", padx=(0, 10))
+        self.action_lbl = tk.Label(action_area, text="",
+                                   font=self.f_action, bg=BG_CARD, fg=TEXT_SEC)
+        self.action_lbl.pack(side="left")
 
         self.rep_lbl = tk.Label(left, text="",
                                 font=self.f_rep, bg=BG_CARD, fg=TEXT_DIM)
-        self.rep_lbl.pack(pady=(8, 0))
+        self.rep_lbl.pack(pady=(3, 0))
 
         # Start / Weiter button
         self.action_btn = tk.Label(left,
                                    text="▶  Kalibrierung starten",
                                    font=self.f_btn,
                                    bg=ACCENT, fg="#ffffff",
-                                   pady=12, cursor="hand2",
+                                   pady=7, cursor="hand2",
                                    anchor="center")
         self.action_btn.bind("<Button-1>", lambda e: self._on_button())
         self.action_btn.bind("<Enter>",
@@ -536,42 +812,43 @@ class CalibGUI:
 
         # Right card
         right_outer = tk.Frame(main, bg=BG)
-        right_outer.grid(row=0, column=1, sticky="nsew", padx=(16, 0))
+        right_outer.grid(row=0, column=1, sticky="nsew", padx=(12, 0))
 
         ex_card = tk.Frame(right_outer, bg=BG_CARD,
                            highlightbackground=BORDER,
-                           highlightthickness=1, padx=20, pady=18)
+                           highlightthickness=1, padx=16, pady=10)
         ex_card.pack(fill="both", expand=True)
 
         tk.Label(ex_card, text="ANWENDUNGSBEISPIEL",
                  font=self.f_exlabel, bg=BG_CARD,
                  fg=TEXT_SEC, anchor="w").pack(fill="x")
-        tk.Frame(ex_card, bg=BORDER, height=1).pack(fill="x", pady=10)
+        tk.Frame(ex_card, bg=BORDER, height=1).pack(fill="x", pady=6)
 
-        # 16:9 canvas — width fills card, height = width * 9/16
+        # 16:9 canvas — TOP, fills container width, fixed height
         self.preview_canvas = tk.Canvas(ex_card, bg=BG_TILE,
                                         highlightbackground=BORDER,
                                         highlightthickness=1,
-                                        width=300, height=169)
-        self.preview_canvas.pack(fill="x")
+                                        height=400)
+        # Don't pack here — shown/hidden by _show_current_example
         self._preview_text_id = self.preview_canvas.create_text(
-            150, 84, text="[ Anwendungs-Preview\n       16 : 9 ]",
+            240, 200, text="",
             font=self.f_sub, fill=TEXT_DIM, justify="center")
-        ex_card.bind("<Configure>", self._on_right_resize)
+        self._preview_icon_id = self.preview_canvas.create_text(
+            240, 200, text="", font=self.f_sub, fill=TEXT_DIM)
+        # no resize binding — fixed canvas sizes
 
-        tk.Frame(ex_card, bg=BG_CARD, height=14).pack()
+        # Widget video player — plays on slider change (16:9 ratio enforced)
+        self._widget_video = VideoPlayer(
+            self.preview_canvas,
+            self._preview_text_id,
+            self._preview_icon_id,
+            self.root,
+            fixed_ratio=1.78,
+        )
 
-        self.example_lbl = tk.Label(ex_card, text="",
-                                    font=self.f_example, bg=BG_CARD,
-                                    fg=TEXT_PRI, wraplength=380,
-                                    justify="left")
-        self.example_lbl.pack(anchor="w", fill="x")
-
-        tk.Frame(ex_card, bg=BG_CARD, height=12).pack()
-
-        # Slider controls: ← dots →
+        # Slider controls: ← dots → (BELOW video)
         slider_row = tk.Frame(ex_card, bg=BG_CARD)
-        slider_row.pack(fill="x")
+        slider_row.pack(fill="x", pady=(6, 0))
 
         self._prev_btn = tk.Label(slider_row, text="←",
                                   font=tkfont.Font(family="Helvetica Neue", size=27),
@@ -592,12 +869,19 @@ class CalibGUI:
         self._next_btn.bind("<Enter>", lambda e: self._next_btn.config(fg=ACCENT))
         self._next_btn.bind("<Leave>", lambda e: self._next_btn.config(fg=TEXT_SEC))
 
+        # Description text (BELOW slider)
+        tk.Frame(ex_card, bg=BG_CARD, height=8).pack()
+        self.example_lbl = tk.Label(ex_card, text="",
+                                    font=self.f_example, bg=BG_CARD,
+                                    fg=TEXT_PRI, wraplength=360,
+                                    justify="left")
+        self.example_lbl.pack(anchor="w", fill="x", padx=50)
+
         # Dot labels — rebuilt when gesture changes
         self._slider_dots = []
         self._slider_idx  = 0
         self._slider_gid  = None
-        self._dots_frame  = self._dots_frame  # already set above
-        self._rebuild_dots(0)  # start with gesture 0
+        self._rebuild_dots(0)
 
     # ── Button ────────────────────────────────────────────────────────────────
 
@@ -706,7 +990,7 @@ class CalibGUI:
         for w in self._slider_dots:
             w.destroy()
         self._slider_dots = []
-        n = len(GESTURE_EXAMPLES.get(gesture_id, []))
+        n = len(WIDGET_SLIDES.get(gesture_id, []))
         for i in range(n):
             dot = tk.Label(self._dots_frame, text="●",
                            font=tkfont.Font(family="Helvetica Neue", size=15),
@@ -722,22 +1006,34 @@ class CalibGUI:
     def _slider_prev(self):
         with cal.lock:
             gid = list(GESTURES.keys())[min(cal.gesture_idx, len(GESTURES)-1)]
-        n = len(GESTURE_EXAMPLES.get(gid, []))
+        n = len(WIDGET_SLIDES.get(gid, []))
         self._slider_idx = (self._slider_idx - 1) % n
         self._show_current_example(gid)
 
     def _slider_next(self):
         with cal.lock:
             gid = list(GESTURES.keys())[min(cal.gesture_idx, len(GESTURES)-1)]
-        n = len(GESTURE_EXAMPLES.get(gid, []))
+        n = len(WIDGET_SLIDES.get(gid, []))
         self._slider_idx = (self._slider_idx + 1) % n
         self._show_current_example(gid)
 
     def _show_current_example(self, gesture_id):
-        examples = GESTURE_EXAMPLES.get(gesture_id, [""])
-        self._slider_idx = self._slider_idx % len(examples)
-        self.example_lbl.config(text=examples[self._slider_idx])
+        slides = WIDGET_SLIDES.get(gesture_id, [(None, "")])
+        self._slider_idx = self._slider_idx % len(slides)
+        path, description = slides[self._slider_idx]
+        self.example_lbl.config(text=description)
         self._update_dots()
+        # Rest has no preview video
+        if gesture_id == 0:
+            self._widget_video.reset()
+            self.preview_canvas.pack_forget()
+        else:
+            # Pack canvas right after the divider (position 2 = after label + divider)
+            self.preview_canvas.pack(fill="x", pady=(0, 0), before=self._prev_btn.master)
+            if path and os.path.exists(path):
+                self._widget_video.start_path(path)
+            else:
+                self._widget_video.reset()
 
     # ── Update loop ───────────────────────────────────────────────────────────
 
@@ -803,8 +1099,8 @@ class CalibGUI:
             self._rebuild_dots(gesture_id)
             self._show_current_example(gesture_id)
         elif phase == "recording" and ex_idx_cal != self._slider_idx:
-            # Worker advanced the example — sync slider unless user just clicked
-            self._slider_idx = ex_idx_cal
+            n = len(WIDGET_SLIDES.get(gesture_id, []))
+            self._slider_idx = ex_idx_cal % n
             self._show_current_example(gesture_id)
 
         # Phase content
@@ -817,7 +1113,8 @@ class CalibGUI:
         elif phase == "ready":
             self._set("BEREIT", ACCENT, "Kalibrierung", TEXT_PRI,
                       "Platziere das Armband und drücke Start.", "", TEXT_SEC)
-            self._anim_placeholder()
+            self._video.reset()
+            self._video_gesture = None
             self._show_btn("▶  Kalibrierung starten")
 
         elif phase == "countdown":
@@ -826,7 +1123,15 @@ class CalibGUI:
                       "Vorbereiten...", f"{int(timer_val)+1}s", WARNING)
             self.rep_lbl.config(
                 text=f"Wiederholung {rep_idx + 1} von {N_CALIB_REPS}")
-            self._tick_anim(gesture_id)
+            # Restart video + advance slider on every new countdown (once per rep)
+            vid_key = (gesture_id, rep_idx)
+            if self._video_gesture != vid_key:
+                self._video_gesture = vid_key
+                self._video.start(gesture_id)
+                # Advance slider index parallel with countdown start
+                slides = WIDGET_SLIDES.get(gesture_id, [(None, "")])
+                self._slider_idx = rep_idx % len(slides)
+                self._show_current_example(gesture_id)
             self._hide_btn()
 
         elif phase == "recording":
@@ -835,14 +1140,14 @@ class CalibGUI:
                       "Geste halten!", f"{int(timer_val)+1}s", ACCENT)
             self.rep_lbl.config(
                 text=f"Wiederholung {rep_idx + 1} von {N_CALIB_REPS}")
-            self._tick_anim(gesture_id)
+            # Video holds last frame — no action needed
             self._hide_btn()
 
         elif phase == "rest":
             self._set("PAUSE", TEXT_SEC,
                       GESTURES[gesture_id], TEXT_DIM,
                       "Kurze Pause", f"{int(timer_val)+1}s", TEXT_SEC)
-            self._anim_placeholder()
+            # Hold last frame — no reset
             self._hide_btn()
 
         elif phase == "gesture_done":
@@ -851,7 +1156,7 @@ class CalibGUI:
             self._set("✓  GESTE ABGESCHLOSSEN", ACCENT,
                       GESTURES[gesture_id], ACCENT,
                       f"Weiter zu: {next_name}", "", ACCENT)
-            self._anim_placeholder()
+            # Hold last frame — no reset
             self._show_btn(f"▶  Weiter zu {next_name}")
 
         elif phase == "training":
@@ -894,13 +1199,7 @@ class CalibGUI:
         self.root.after(100, self._update)
 
     def _on_left_resize(self, event):
-        """Keep animation canvas square."""
-        w = event.width - 48  # subtract padx
-        if w > 0:
-            self.anim_canvas.config(width=w, height=w)
-            cx, cy = w // 2, w // 2
-            self.anim_canvas.coords(self._anim_canvas_text, cx, cy)
-            self.anim_canvas.coords(self.anim_icon_id, cx, cy)
+        pass  # canvas is fixed 280x280
 
     def _on_right_resize(self, event):
         """Keep preview canvas 16:9."""
