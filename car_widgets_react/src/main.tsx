@@ -102,7 +102,15 @@ function App() {
   const previewPayload = useMemo(() => createPreviewPayload(previewScenario), [previewScenario]);
   const displayPayload = previewPayload ?? livePayload;
   const displayState = useMemo(() => createPreviewState(state, previewScenario, previewPayload), [state, previewScenario, previewPayload]);
-  const showPreviewPopup = previewScenario !== "off";
+  const shouldShowPopup = Boolean(
+    previewPayload ||
+    (livePayload && (
+      livePayload.event_type === "scenario_start" ||
+      livePayload.event_type === "step_update" ||
+      livePayload.event_type === "trial_completed"
+    ))
+  );
+  const previewControlLabel = previewPayload ? previewScenarioDisplayLabel(previewScenario) : liveScenarioLabel(livePayload);
   const guidance = useMemo(() => guidanceFor(displayPayload), [displayPayload]);
   const stepLabel = displayPayload && typeof displayPayload.step_index === "number" && displayPayload.step_count
     ? `${(displayPayload.step_index ?? 0) + 1}/${displayPayload.step_count}`
@@ -116,7 +124,11 @@ function App() {
           <p className="bridge-status">{bridgeStatus}</p>
         </div>
         <div className="topbar-tools">
-          <PreviewScenarioControl value={previewScenario} onChange={setPreviewScenario} />
+          <PreviewScenarioControl
+            value={previewScenario}
+            onChange={setPreviewScenario}
+            displayLabel={previewControlLabel}
+          />
           <ModeBadge condition={displayPayload?.condition} />
         </div>
       </header>
@@ -139,7 +151,7 @@ function App() {
         </aside>
       </div>
 
-      {showPreviewPopup && <InteractionPopup payload={displayPayload} state={displayState} />}
+      {shouldShowPopup && <InteractionPopup payload={displayPayload} state={displayState} />}
 
       <FeedbackBadge decision={displayState.decision} feedback={displayState.feedback} />
     </main>
@@ -149,44 +161,148 @@ function App() {
 function PreviewScenarioControl({
   value,
   onChange,
+  displayLabel,
 }: {
   value: PreviewScenario;
   onChange: (value: PreviewScenario) => void;
+  displayLabel: string;
 }) {
   return (
     <label className="preview-control">
-      <span>Preview scenario</span>
-      <select value={value} onChange={(event) => onChange(event.target.value as PreviewScenario)}>
-        <option value="off">Off / Live middleware</option>
-        <option value="ambient-waiting">Ambient · Waiting</option>
-        <option value="ambient-swipe">Ambient · Swipe detected</option>
-        <option value="ambient-rotate">Ambient · Drehen detected</option>
-        <option value="ambient-confirmed">Ambient · Confirmed</option>
-        <option value="call-incoming">Call · Incoming</option>
-        <option value="call-accepted">Call · Accepted</option>
-        <option value="navigation-route">Navigation · Route suggestion</option>
-        <option value="navigation-accepted">Navigation · Accepted</option>
-        <option value="navigation-declined">Navigation · Declined</option>
-        <option value="navigation-selected">Navigation · Selected</option>
-        <option value="navigation-clarify">Navigation · Clarify</option>
-        <option value="music-suggestion">Audio · Music suggestion</option>
-        <option value="audio-playing">Audio · Playing</option>
-        <option value="audio-skipped">Audio · Skipped</option>
-        <option value="audio-volume">Audio · Volume adjusted</option>
-        <option value="audio-clarify">Audio · Clarify</option>
-        <option value="message-open">Message · New</option>
-        <option value="message-opened">Message · Opened</option>
-        <option value="message-closed">Message · Closed</option>
-        <option value="message-confirmed">Message · Confirmed</option>
-        <option value="message-clarify">Message · Clarify</option>
-        <option value="climate-seat">Climate · Seat heating</option>
-        <option value="climate-adjusting">Climate · Adjusting</option>
-        <option value="climate-confirmed">Climate · Confirmed</option>
-        <option value="climate-cancelled">Climate · Cancelled</option>
-        <option value="climate-clarify">Climate · Clarify</option>
-      </select>
+      <span className="preview-control-title">Preview scenario</span>
+      <span className="preview-select-shell">
+        <select
+          className="preview-select-native"
+          value={value}
+          onChange={(event) => onChange(event.target.value as PreviewScenario)}
+          aria-label="Preview scenario"
+        >
+          <option value="off">Off / Live middleware</option>
+          <option value="ambient-waiting">Ambient · Waiting</option>
+          <option value="ambient-swipe">Ambient · Swipe detected</option>
+          <option value="ambient-rotate">Ambient · Drehen detected</option>
+          <option value="ambient-confirmed">Ambient · Confirmed</option>
+          <option value="call-incoming">Call · Incoming</option>
+          <option value="call-accepted">Call · Accepted</option>
+          <option value="navigation-route">Navigation · Route suggestion</option>
+          <option value="navigation-accepted">Navigation · Accepted</option>
+          <option value="navigation-declined">Navigation · Declined</option>
+          <option value="navigation-selected">Navigation · Selected</option>
+          <option value="navigation-clarify">Navigation · Clarify</option>
+          <option value="music-suggestion">Audio · Music suggestion</option>
+          <option value="audio-playing">Audio · Playing</option>
+          <option value="audio-skipped">Audio · Skipped</option>
+          <option value="audio-volume">Audio · Volume adjusted</option>
+          <option value="audio-clarify">Audio · Clarify</option>
+          <option value="message-open">Message · New</option>
+          <option value="message-opened">Message · Opened</option>
+          <option value="message-closed">Message · Closed</option>
+          <option value="message-confirmed">Message · Confirmed</option>
+          <option value="message-clarify">Message · Clarify</option>
+          <option value="climate-seat">Climate · Seat heating</option>
+          <option value="climate-adjusting">Climate · Adjusting</option>
+          <option value="climate-confirmed">Climate · Confirmed</option>
+          <option value="climate-cancelled">Climate · Cancelled</option>
+          <option value="climate-clarify">Climate · Clarify</option>
+        </select>
+        <span className="preview-select-value">{displayLabel}</span>
+      </span>
     </label>
   );
+}
+
+function liveScenarioLabel(payload: WidgetPayload | null): string {
+  if (!payload || !payload.domain || payload.domain === "unknown") {
+    return "Live · No active scenario";
+  }
+
+  const domainLabel = domainDisplayLabel(payload.domain);
+  const gestureLabel = payload.source?.gesture_event?.gesture_label;
+  const hasGesture = Boolean(gestureLabel && gestureLabel !== "Rest");
+
+  if (payload.decision === "clarify") {
+    return `Live · ${domainLabel} · Clarify`;
+  }
+  if (payload.decision === "execute" || payload.event_type === "trial_completed" || gestureLabel === "Daumen hoch") {
+    return `Live · ${domainLabel} · ${confirmedStateLabel(payload.domain)}`;
+  }
+  if (payload.decision === "cancel") {
+    return `Live · ${domainLabel} · Rejected`;
+  }
+  if (hasGesture) {
+    return `Live · ${domainLabel} · Gesture`;
+  }
+  if (payload.event_type === "scenario_start") {
+    return `Live · ${domainLabel} · ${payload.domain === "calls" ? "Incoming" : "Idle"}`;
+  }
+  return `Live · ${domainLabel} · Active`;
+}
+
+function domainDisplayLabel(domain: WidgetPayload["domain"]): string {
+  switch (domain) {
+    case "ambient_light":
+      return "Ambient";
+    case "calls":
+      return "Call";
+    case "navigation":
+      return "Navigation";
+    case "audio":
+      return "Audio";
+    case "messages":
+      return "Message";
+    case "climate":
+      return "Climate";
+    default:
+      return "Live middleware";
+  }
+}
+
+function confirmedStateLabel(domain: WidgetPayload["domain"]): string {
+  switch (domain) {
+    case "calls":
+    case "navigation":
+      return "Accepted";
+    case "audio":
+      return "Playing";
+    case "messages":
+      return "Opened";
+    default:
+      return "Confirmed";
+  }
+}
+
+function previewScenarioDisplayLabel(previewScenario: PreviewScenario): string {
+  switch (previewScenario) {
+    case "ambient-waiting": return "Ambient · Waiting";
+    case "ambient-swipe": return "Ambient · Swipe detected";
+    case "ambient-rotate": return "Ambient · Drehen detected";
+    case "ambient-confirmed": return "Ambient · Confirmed";
+    case "call-incoming": return "Call · Incoming";
+    case "call-accepted": return "Call · Accepted";
+    case "navigation-route": return "Navigation · Route suggestion";
+    case "navigation-accepted": return "Navigation · Accepted";
+    case "navigation-declined": return "Navigation · Declined";
+    case "navigation-selected": return "Navigation · Selected";
+    case "navigation-clarify": return "Navigation · Clarify";
+    case "music-suggestion": return "Audio · Music suggestion";
+    case "audio-playing": return "Audio · Playing";
+    case "audio-skipped": return "Audio · Skipped";
+    case "audio-volume": return "Audio · Volume adjusted";
+    case "audio-clarify": return "Audio · Clarify";
+    case "message-open": return "Message · New";
+    case "message-opened": return "Message · Opened";
+    case "message-closed": return "Message · Closed";
+    case "message-confirmed": return "Message · Confirmed";
+    case "message-clarify": return "Message · Clarify";
+    case "climate-seat": return "Climate · Seat heating";
+    case "climate-adjusting": return "Climate · Adjusting";
+    case "climate-confirmed": return "Climate · Confirmed";
+    case "climate-cancelled": return "Climate · Cancelled";
+    case "climate-clarify": return "Climate · Clarify";
+    case "off":
+    default:
+      return "Off / Live middleware";
+  }
 }
 
 function createPreviewPayload(previewScenario: PreviewScenario): WidgetPayload | null {

@@ -182,7 +182,7 @@ body {
   background: rgba(243,201,107,0.04);
 }
 
-.preview-control span {
+.preview-control-title {
   color: #f3c96b;
   font-size: 10px;
   font-weight: 800;
@@ -191,9 +191,10 @@ body {
   white-space: nowrap;
 }
 
-.preview-control select {
-  appearance: none;
-  max-width: 210px;
+.preview-select-shell {
+  position: relative;
+  min-width: 210px;
+  max-width: 260px;
   padding: 6px 26px 6px 9px;
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 10px;
@@ -201,11 +202,35 @@ body {
     linear-gradient(45deg, transparent 50%, #99a1af 50%) calc(100% - 14px) 50% / 5px 5px no-repeat,
     linear-gradient(135deg, #99a1af 50%, transparent 50%) calc(100% - 9px) 50% / 5px 5px no-repeat,
     #252530;
+  overflow: hidden;
+}
+
+.preview-select-native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.preview-select-value {
+  display: block;
   color: #f4f7fb;
   font: inherit;
   font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.preview-select-native:focus-visible + .preview-select-value {
+  outline: 2px solid rgba(59,130,246,0.65);
+  outline-offset: 3px;
+  border-radius: 6px;
 }
 
 h1,
