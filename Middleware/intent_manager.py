@@ -75,7 +75,7 @@ GESTURE_HINTS = {
     "Swipe": "reject, dismiss, skip, or next option",
     "Handgelenk drehen": "adjust a continuous value such as volume, brightness, or heating",
     "Zeigen / Tippen": "select, point, or tap an option",
-    "Zeigen/Tippen": "select, point, or tap an option",
+    "Tippen": "select, point, or tap an option",
     "Rest": "neutral, no intentional command",
     "Unknown": "unrecognized gesture",
     "NONE": "no gesture available",

@@ -73,7 +73,7 @@ The gesture vocabulary follows the current prototype classes:
 | 1 | Daumen hoch | Accept, confirm, approve, resume. |
 | 2 | Swipe | Reject, dismiss, next option, skip. |
 | 3 | Handgelenk drehen | Regulate a continuous parameter such as volume, brightness, or heating. |
-| 4 | Zeigen/Tippen | Select, point to an option, choose an item. |
+| 4 | Tippen | Select, point to an option, choose an item. |
 
 The voice vocabulary is intentionally flexible in the pilot. Participants may
 use natural short commands, for example "accept the call", "reject it", "make it

@@ -17,8 +17,8 @@ ACTIONABLE_GESTURE_LABELS = {
     "Daumen hoch": 1,
     "Swipe": 2,
     "Handgelenk drehen": 3,
-    "Zeigen / Tippen": 4,
-    "Zeigen/Tippen": 4,
+    "Tippen": 4,
+    "Tippen": 4,
 }
 NON_ACTION_GESTURES = {"", "none", "no gesture", "rest", "unknown", "none [no recognition]"}
 GESTURE_SOURCES = {"emg", "manual", "wizard", "none"}
@@ -55,8 +55,8 @@ def normalize_gesture_label(gesture_label: str | None) -> str:
     label = (gesture_label or "").strip()
     if label.lower() in NON_ACTION_GESTURES:
         return ""
-    if label == "Zeigen/Tippen":
-        return "Zeigen / Tippen"
+    if label == "Tippen":
+        return "Tippen"
     return label
 
 

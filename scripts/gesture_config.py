@@ -10,12 +10,12 @@ GESTURE_NAMES = {
     1: "Daumen hoch",
     2: "Swipe",
     3: "Handgelenk drehen",
-    4: "Zeigen/Tippen",
+    4: "Tippen",
 }
 
 GESTURE_DISPLAY_NAMES = {
     **GESTURE_NAMES,
-    4: "Zeigen / Tippen",
+    4: "Tippen",
 }
 
 GESTURE_COLLECTION_CUES = {
@@ -44,7 +44,7 @@ LIVE_GESTURE_NAMES = {
     1: "Annehmen        (Daumen hoch)",
     2: "Ablehnen/Nav    (Swipe)",
     3: "Regulieren      (Handgelenk drehen)",
-    4: "Zeigen/Tippen   (nur Zeigefinger gestreckt, restliche Finger eingekrallt)",
+    4: "Tippen   (nur Zeigefinger gestreckt, restliche Finger eingekrallt)",
 }
 
 MANUAL_GESTURE_IDS = tuple(gid for gid in GESTURE_NAMES if gid != 0)
