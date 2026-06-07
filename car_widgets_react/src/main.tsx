@@ -1206,11 +1206,51 @@ function voicePreviewActions(payload: WidgetPayload): Array<{ label: string; act
   return null;
 }
 
+function waitingTextFor(payload: WidgetPayload): string {
+  if (payload.condition === "Voice only") {
+    return "Warte auf Spracheingabe";
+  }
+  if (payload.condition === "Gesture only") {
+    return "Warte auf Geste";
+  }
+  return "Warte auf Sprache oder Geste";
+}
+
+function PopupProcessNotice({
+  isWaiting,
+  isClarify,
+  waitingText,
+  clarifyText,
+}: {
+  isWaiting: boolean;
+  isClarify: boolean;
+  waitingText: string;
+  clarifyText: string;
+}) {
+  if (!isWaiting && !isClarify) {
+    return null;
+  }
+
+  return (
+    <div className={`popup-process-notice ${isClarify ? "popup-process-notice--clarify" : "popup-process-notice--waiting"}`} role="status" aria-live="polite">
+      <span className={isClarify ? "popup-process-notice__alert" : "popup-process-notice__spinner"} aria-hidden>
+        {isClarify ? "!" : ""}
+      </span>
+      <div>
+        <strong>{isClarify ? "Eingabe nicht erkannt" : waitingText}</strong>
+        <p>{isClarify ? clarifyText : "Das System wartet auf deine Eingabe."}</p>
+      </div>
+    </div>
+  );
+}
+
 function CallPopupWidget({ payload, state, onPreviewGesture }: { payload: WidgetPayload; state: CockpitState; onPreviewGesture?: (gesture: PreviewGesture) => void }) {
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
   const normalizedGesture = normalizeGestureLabel(gestureLabel);
   const intentText = `${payload.intent ?? ""} ${payload.action ?? ""} ${payload.target ?? ""}`.toLowerCase();
   const isClarify = payload.decision === "clarify";
+  const isWaiting = !isClarify && !payload.decision && !gestureLabel;
+  const clarifyText = payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen.";
   const isVolumeTask = payload.task_id === "CALL-VOLUME";
   const isEndTask = payload.task_id === "CALL-END";
   const isRotate = normalizedGesture === "handgelenkdrehen";
@@ -1248,7 +1288,7 @@ function CallPopupWidget({ payload, state, onPreviewGesture }: { payload: Widget
         ? "call-popup--declined"
         : "call-popup--incoming";
   const body = isClarify
-    ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    ? payload.overlay_body || "Anruf mit Alex."
     : isEnded
       ? payload.accepted_text || "Anruf beendet."
     : isEndTask
@@ -1293,7 +1333,14 @@ function CallPopupWidget({ payload, state, onPreviewGesture }: { payload: Widget
           </div>
         </div>
 
-        {isVolumeTask ? (
+        <PopupProcessNotice
+          isWaiting={isWaiting}
+          isClarify={isClarify}
+          waitingText={waitingTextFor(payload)}
+          clarifyText={clarifyText}
+        />
+
+        {!isClarify && (isVolumeTask ? (
           <>
             {showGestureActions && (
               <div className="call-popup__actions" aria-label="Anruflautstärke">
@@ -1348,7 +1395,7 @@ function CallPopupWidget({ payload, state, onPreviewGesture }: { payload: Widget
               </div>
             )}
           </>
-        )}
+        ))}
       </section>
     </div>
   );
@@ -1358,6 +1405,8 @@ function NavigationPopupWidget({ payload, state, onPreviewGesture }: { payload: 
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
   const normalizedGesture = normalizeGestureLabel(gestureLabel);
   const isClarify = payload.decision === "clarify";
+  const isWaiting = !isClarify && !payload.decision && !gestureLabel;
+  const clarifyText = payload.unclear_text || payload.prompt || "Bitte Auswahl wiederholen.";
   const isNextRouteTask = payload.task_id === "NAV-NEXT-ROUTE";
   const isSelectRouteTask = payload.task_id === "NAV-SELECT-SECOND";
   const isVolumeTask = payload.task_id === "NAV-VOLUME-UP";
@@ -1401,7 +1450,7 @@ function NavigationPopupWidget({ payload, state, onPreviewGesture }: { payload: 
           ? "navigation-popup--selected"
           : "navigation-popup--suggested";
   const body = isClarify
-    ? payload.unclear_text || payload.prompt || "Bitte Auswahl wiederholen."
+    ? payload.overlay_body || "Route verfügbar."
     : isVolumeUp
       ? payload.accepted_text || "Navigationsansagen lauter gemacht."
     : isVolumeTask
@@ -1453,7 +1502,14 @@ function NavigationPopupWidget({ payload, state, onPreviewGesture }: { payload: 
           </div>
         </div>
 
-        {showGestureActions && (
+        <PopupProcessNotice
+          isWaiting={isWaiting}
+          isClarify={isClarify}
+          waitingText={waitingTextFor(payload)}
+          clarifyText={clarifyText}
+        />
+
+        {!isClarify && showGestureActions && (
           <div className="navigation-popup__actions" aria-label="Navigationsgesten">
             {!isRouteBrowseSelectTask && (
               <span className={`navigation-popup__chip navigation-popup__chip--accept ${isAccepted ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Daumen hoch", onPreviewGesture)}>
@@ -1465,7 +1521,7 @@ function NavigationPopupWidget({ payload, state, onPreviewGesture }: { payload: 
             </span>
           </div>
         )}
-        {showVoiceActions && shouldShowVoiceControls && (
+        {!isClarify && showVoiceActions && shouldShowVoiceControls && (
           <div className="navigation-popup__actions" aria-label="Navigationsentscheidung">
             {previewActions ? previewActions.map((action) => (
               <button
@@ -1499,6 +1555,8 @@ function AudioPopupWidget({ payload, state, onPreviewGesture }: { payload: Widge
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
   const normalizedGesture = normalizeGestureLabel(gestureLabel);
   const isClarify = payload.decision === "clarify";
+  const isWaiting = !isClarify && !payload.decision && !gestureLabel;
+  const clarifyText = payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen.";
   const isResumeTask = payload.task_id === "AUDIO-RESUME";
   const isNextTask = payload.task_id === "AUDIO-NEXT";
   const isLouderTask = payload.task_id === "AUDIO-LOUDER";
@@ -1512,7 +1570,6 @@ function AudioPopupWidget({ payload, state, onPreviewGesture }: { payload: Widge
   const { showVoiceActions, showGestureActions } = popupModalityVisibility(payload);
   const previewActions = onPreviewGesture ? voicePreviewActions(payload) : null;
   const volume = Math.max(0, Math.min(100, isVolume ? Math.max(state.volume, 72) : state.volume));
-  const progress = isResumeTask && !isPlaying ? 28 : isSkipped ? 18 : isPlaying ? 48 : 32;
   const trackTitle = state.track || "Night Drive";
   const stageClass = isClarify
     ? "audio-popup--clarify"
@@ -1526,7 +1583,7 @@ function AudioPopupWidget({ payload, state, onPreviewGesture }: { payload: Widge
           ? "audio-popup--playing"
           : "audio-popup--suggested";
   const body = isClarify
-    ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    ? payload.overlay_body || "Audiowiedergabe"
     : isVolume && payload.decision === "execute"
       ? payload.accepted_text || "Lautstärke angepasst"
     : isVolume
@@ -1554,18 +1611,26 @@ function AudioPopupWidget({ payload, state, onPreviewGesture }: { payload: Widge
             <span className="audio-popup__label">{metaText}</span>
             <strong className="audio-popup__track">{trackTitle}</strong>
             <p>{body}</p>
-            <div className={`audio-popup__progress ${isVolume ? "audio-popup__progress--volume" : ""}`} aria-label={isVolume ? `Lautstärke ${volume}%` : `Wiedergabe ${progress}%`}>
-              <span style={{ width: `${isVolume ? volume : progress}%` }} />
-            </div>
-            <div className="audio-popup__controls" aria-label="Musiksteuerung">
-              <span aria-hidden>‹‹</span>
-              <span aria-hidden>{state.audioPlaying || isPlaying ? "Ⅱ" : "▶"}</span>
-              <span aria-hidden>››</span>
+            <div className={`audio-popup__volume ${isVolume ? "audio-popup__volume--active" : ""}`} aria-label={`Lautstärke ${volume}%`}>
+              <div className="audio-popup__volume-label">
+                <span>Lautstärke</span>
+                <strong>{volume}%</strong>
+              </div>
+              <div className="audio-popup__volume-track">
+                <span style={{ width: `${volume}%` }} />
+              </div>
             </div>
           </div>
         </div>
 
-        {showGestureActions && (
+        <PopupProcessNotice
+          isWaiting={isWaiting}
+          isClarify={isClarify}
+          waitingText={waitingTextFor(payload)}
+          clarifyText={clarifyText}
+        />
+
+        {!isClarify && showGestureActions && (
           <div className="audio-popup__actions" aria-label="Audiogesten">
             <span
               className={`audio-popup__chip audio-popup__chip--accept ${isPlaying ? "audio-popup__chip--active" : ""}`}
@@ -1583,7 +1648,7 @@ function AudioPopupWidget({ payload, state, onPreviewGesture }: { payload: Widge
             )}
           </div>
         )}
-        {showVoiceActions && (
+        {!isClarify && showVoiceActions && (
           <div className="audio-popup__actions" aria-label="Audioaktionen">
             {previewActions ? previewActions.map((action) => (
               <button
@@ -1617,6 +1682,8 @@ function MessagesPopupWidget({ payload, state, onPreviewGesture }: { payload: Wi
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
   const normalizedGesture = normalizeGestureLabel(gestureLabel);
   const isClarify = payload.decision === "clarify";
+  const isWaiting = !isClarify && !payload.decision && !gestureLabel;
+  const clarifyText = payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen.";
   const isConfirmed = !isClarify && gestureLabel === "Daumen hoch";
   const isCloseTask = payload.task_id === "MESSAGE-CLOSE";
   const isOpened = !isClarify && !isConfirmed && !isCloseTask && (normalizedGesture === "tap" || payload.decision === "execute");
@@ -1633,7 +1700,7 @@ function MessagesPopupWidget({ payload, state, onPreviewGesture }: { payload: Wi
           ? "messages-popup--closed"
           : "messages-popup--new";
   const body = isClarify
-    ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    ? payload.overlay_body || "Neue Nachricht von Anna."
     : isConfirmed
       ? payload.accepted_text || "Bestätigt"
       : isOpened
@@ -1660,7 +1727,14 @@ function MessagesPopupWidget({ payload, state, onPreviewGesture }: { payload: Wi
           </div>
         </div>
 
-        {showGestureActions && (
+        <PopupProcessNotice
+          isWaiting={isWaiting}
+          isClarify={isClarify}
+          waitingText={waitingTextFor(payload)}
+          clarifyText={clarifyText}
+        />
+
+        {!isClarify && showGestureActions && (
           <div className="messages-popup__actions" aria-label="Nachrichtengesten">
             <span className={`messages-popup__chip messages-popup__chip--open ${isOpened ? "messages-popup__chip--active" : ""}`} {...previewChipProps("Zeigen / Tippen", onPreviewGesture)}>
               <span aria-hidden>⌾</span>Tippen
@@ -1673,7 +1747,7 @@ function MessagesPopupWidget({ payload, state, onPreviewGesture }: { payload: Wi
             </span>
           </div>
         )}
-        {showVoiceActions && (
+        {!isClarify && showVoiceActions && (
           <div className="messages-popup__actions" aria-label="Nachrichtenaktionen">
             {previewActions ? previewActions.map((action) => (
               <button
@@ -1707,6 +1781,8 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
   const normalizedGesture = normalizeGestureLabel(gestureLabel);
   const isClarify = payload.decision === "clarify";
+  const isWaiting = !isClarify && !payload.decision && !gestureLabel;
+  const clarifyText = payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen.";
   const isSeatSelectTask = payload.task_id === "CLIMATE-SEAT-HEAT";
   const isIncreaseTask = payload.task_id === "CLIMATE-SEAT-WARMER" || payload.task_id === "CLIMATE-INCREASE";
   const isSwipe = normalizedGesture === "swipe";
@@ -1730,7 +1806,7 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
           ? "climate-popup--adjusting"
           : "climate-popup--active";
   const body = isClarify
-    ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    ? payload.overlay_body || "Sitzheizung einstellen."
     : isSelectingSeatHeat
       ? payload.accepted_text || "Sitzheizung ausgewählt."
     : isSuccess
@@ -1782,7 +1858,14 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
           </div>
         </div>
 
-        {showGestureActions && (
+        <PopupProcessNotice
+          isWaiting={isWaiting}
+          isClarify={isClarify}
+          waitingText={waitingTextFor(payload)}
+          clarifyText={clarifyText}
+        />
+
+        {!isClarify && showGestureActions && (
           <div className="climate-popup__actions" aria-label="Sitzheizungsgesten">
             <span className={`climate-popup__chip climate-popup__chip--cancel ${isCancelled || isSelectingSeatHeat ? "climate-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
               <span aria-hidden>↔</span>Swipe
@@ -1792,7 +1875,7 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
             </span>
           </div>
         )}
-        {showVoiceActions && (
+        {!isClarify && showVoiceActions && (
           <div className="climate-popup__actions" aria-label="Sitzheizungsentscheidung">
             <button className={`climate-popup__button climate-popup__button--accept ${isSuccess ? "climate-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Handgelenk drehen") : undefined}>
               Annehmen
@@ -1810,10 +1893,12 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
 function AmbientPopupWidget({ payload, state, onPreviewGesture }: { payload: WidgetPayload; state: CockpitState; onPreviewGesture?: (gesture: PreviewGesture) => void }) {
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
   const { showVoiceActions, showGestureActions } = popupModalityVisibility(payload);
-  const isSwipe = gestureLabel === "Swipe";
-  const isRotate = gestureLabel === "Handgelenk drehen";
-  const isCancelled = payload.success === false || payload.decision === "cancel";
-  const isConfirmed = payload.decision === "execute" || gestureLabel === "Daumen hoch";
+  const isClarify = payload.decision === "clarify";
+  const isWaiting = !isClarify && !payload.decision && !gestureLabel;
+  const isSwipe = !isClarify && gestureLabel === "Swipe";
+  const isRotate = !isClarify && gestureLabel === "Handgelenk drehen";
+  const isCancelled = !isClarify && (payload.success === false || payload.decision === "cancel");
+  const isConfirmed = !isClarify && (payload.decision === "execute" || gestureLabel === "Daumen hoch");
   const brightness = Math.max(0, Math.min(100, state.ambientBrightness));
   const colorPresets = [
     { id: "violet", label: "Violett", hex: "#a855f7" },
@@ -1828,7 +1913,7 @@ function AmbientPopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
   const brightnessPosition = isRotate ? Math.min(100, brightness + 18) : brightness;
   return (
     <div className={`interaction-popup ambient-popup-shell ${payload.event_type || ""}`}>
-      <section className={`ambient-popup-card ${isCancelled ? "ambient-popup-card--cancelled" : isConfirmed ? "ambient-popup-card--confirmed" : isSwipe || isRotate ? "ambient-popup-card--detected" : ""}`}>
+      <section className={`ambient-popup-card ${isClarify ? "ambient-popup-card--clarify" : isCancelled ? "ambient-popup-card--cancelled" : isConfirmed ? "ambient-popup-card--confirmed" : isSwipe || isRotate ? "ambient-popup-card--detected" : ""}`}>
         <div className="ambient-popup-header">
           <div>
             <span className="eyebrow ambient-popup-eyebrow">Ambientebeleuchtung</span>
@@ -1862,7 +1947,14 @@ function AmbientPopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
           </div>
         </div>
 
-        {(showVoiceActions || showGestureActions) && (
+        <PopupProcessNotice
+          isWaiting={isWaiting}
+          isClarify={isClarify}
+          waitingText={waitingTextFor(payload)}
+          clarifyText={payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."}
+        />
+
+        {!isClarify && (showVoiceActions || showGestureActions) && (
           <div className="ambient-popup-gesture-row" aria-label="Interaktionen">
             {showGestureActions && (
               <>
