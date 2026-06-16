@@ -82,6 +82,30 @@ class WidgetBridgeTests(unittest.TestCase):
         self.assertEqual(payload["source"]["voice_event"], voice)
         self.assertEqual(payload["source"]["gesture_event"], gesture)
 
+    def test_payload_preserves_manual_voice_source(self):
+        voice = create_voice_event("Route annehmen", source="manual")
+        payload = build_widget_payload(
+            intent_result={
+                "intent": "accept_route",
+                "action": "accept",
+                "target": "route",
+                "used_modalities": "voice",
+            },
+            study_context={
+                "condition": "Voice only",
+                "category": "Accept/Reject",
+                "scenario_id": "VO-AR",
+                "study_ref": "1.1",
+                "scenario_prompt": "Accept route.",
+            },
+            voice_event=voice,
+            used_modalities="voice",
+        )
+
+        self.assertEqual(payload["source"]["voice_event"]["source"], "manual")
+        self.assertEqual(payload["source"]["voice_event"]["transcript"], "Route annehmen")
+        self.assertEqual(payload["source"]["used_modalities"], "voice")
+
     def test_scenario_start_payload_loads_widget_without_decision(self):
         scenario = get_scenario("4.3")
         step = scenario.flow_steps[0]

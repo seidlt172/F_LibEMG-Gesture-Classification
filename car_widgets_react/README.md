@@ -69,8 +69,10 @@ python gesture_gui.py
 `scenario_start` event so the cockpit resets to the correct scenario before
 the first intent decision arrives.
 
-5. Then use voice, EMG, or Wizard input depending on the active condition and
-click `Intent auswerten`.
+5. Then use voice, EMG, manual `Test-Text`, or Wizard input depending on the
+active condition and click `Intent auswerten`. `Test-Text` is posted through
+the same middleware voice-event path as a Whisper transcript, with
+`source=manual`.
 
 During a multi-step scenario, every successful `Intent auswerten` advances the
 React cockpit to the next step because the operator GUI sends a `step_update`

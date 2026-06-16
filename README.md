@@ -170,7 +170,12 @@ ollama pull qwen3.5:2b
 export OLLAMA_MODEL=qwen3.5:2b
 ```
 
-`Middleware/intent_manager.py` is intentionally constrained to structured intent parsing, not free-form chatbot behavior. It sends the latest Whisper transcript, the last confirmed EMG gesture, whether that gesture was manual or EMG-predicted, and the active study scenario context to Ollama. Clear voice commands are treated as the primary semantic signal; a conflicting gesture should not force `unknown`.
+`Middleware/intent_manager.py` is intentionally constrained to structured
+intent parsing, not free-form chatbot behavior. It sends the latest voice event
+transcript (from Whisper or manual `Test-Text`), the last confirmed EMG
+gesture, whether that gesture was manual or EMG-predicted, and the active study
+scenario context to Ollama. Clear voice commands are treated as the primary
+semantic signal; a conflicting gesture should not force `unknown`.
 
 | Field | Meaning |
 | --- | --- |
@@ -280,9 +285,19 @@ source .venv/bin/activate
 python gesture_gui.py
 ```
 
-The first GUI start can take longer because Whisper may download and load the local speech model. macOS may ask for microphone permission; allow it for the terminal app you are using.
+The first real speech transcription can take longer because Whisper may
+download and load the local speech model. macOS may ask for microphone
+permission; allow it for the terminal app you are using. For faster intent and
+widget tests without a microphone, enter a phrase in the GUI's `Test-Text`
+field and click `Text übernehmen`; this creates a manual voice event and uses
+the same intent path as a Whisper transcript.
 
-Use `Intent auswerten` in the GUI after recording speech and/or confirming a gesture. This calls the local Ollama model and shows a structured in-car intent. In study mode, the active condition determines which inputs are interpreted: `Voice only` ignores gestures as participant input, `Gesture only` ignores speech as participant input, and `CAN use both` allows both.
+Use `Intent auswerten` in the GUI after recording speech, entering test text,
+and/or confirming a gesture. This calls the local Ollama model and shows a
+structured in-car intent. In study mode, the active condition determines which
+inputs are interpreted: `Voice only` ignores gestures as participant input,
+`Gesture only` ignores speech as participant input, and `CAN use both` allows
+both.
 
 ## Maintained Commands
 
@@ -330,6 +345,7 @@ The GUI launched by `python gesture_gui.py` combines:
 - operator-only manual gesture buttons for fallback/Wizard support
 - microphone recording through PyAudio
 - local German speech transcription through Whisper
+- manual test text input that is normalized as `source=manual` voice input
 - local Ollama intent parsing for voice + gesture
 - a pilot study operator panel for scenario selection, trial timing, and JSONL export
 
@@ -343,7 +359,9 @@ The manual gesture buttons are for the study team, not for participants. Partici
 
 1. Select `participant_id`, `condition_order`, and the direct study scenario (`1.1` to `4.3`).
 2. Click `Trial starten`; this resets the current transcript, gesture, and intent result and sends the first active step to the participant-facing widget.
-3. Run the task. Confirm live EMG with `Einloggen`, record speech, or use the `OPERATOR / WIZARD` controls only as fallback.
+3. Run the task. Confirm live EMG with `Einloggen`, record speech, enter
+   `Test-Text` for faster voice-path testing, or use the `OPERATOR / WIZARD`
+   controls only as fallback.
 4. Click `Intent auswerten` to parse the condition-filtered input with the current scenario and step context.
 5. Each successful intent advances exactly one step inside the active scenario. A clarification keeps the same step active.
 6. After the final step, the widget shows `trial_completed`; end the trial with `Erfolgreich beenden` or `Abbrechen`.

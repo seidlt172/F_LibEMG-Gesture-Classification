@@ -269,6 +269,8 @@ in software, collected manually by the experimenter, or combined.
 | recognition_outcome | Correct, wrong, none, delayed, Wizard intervention, or mixed. |
 | wizard_intervention | Boolean flag. |
 | voice_transcript | Recognized or manually transcribed utterance, if any. |
+| voice_source | `whisper`, `manual`, `wizard`, or `none`; manual `Test-Text` must be distinguishable from automatic speech recognition. |
+| manual_voice_input | Boolean flag for operator-entered test text. |
 | gesture_label | Recognized gesture class, if any. |
 | gesture_confidence | Gesture confidence where available. |
 | voice_confidence | Voice confidence where available. |

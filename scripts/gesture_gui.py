@@ -42,13 +42,11 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from Middleware.audio_recorder import AudioRecorder
 from Middleware.input_events import build_intent_inputs
 from Middleware.input_events import create_gesture_event
 from Middleware.input_events import create_voice_event
 from Middleware.intent_manager import OllamaIntentClient
 from Middleware.intent_manager import OllamaIntentError
-from Middleware.speech_transcriber import SpeechTranscriber
 from Middleware.widget_bridge import WidgetBridgeClient
 from Middleware.widget_bridge import build_scenario_start_payload
 from Middleware.widget_bridge import build_trial_completed_payload
@@ -256,6 +254,7 @@ class GestureGUI:
         self.last_logged_gesture_source = "none"
         self.last_logged_gesture_confidence = None
         self.last_voice_event = None
+        self.last_voice_source = "none"
         self.last_gesture_event = None
         self.last_widget_payload = None
         self.last_recognition_outcome = "none"
@@ -277,11 +276,11 @@ class GestureGUI:
         self.scenario_id_var = tk.StringVar(value="")
         self.scenario_prompt_var = tk.StringVar(value="")
         self.notes_var = tk.StringVar(value="")
+        self.manual_transcript_var = tk.StringVar(value="")
         self.scenario_choice_var.trace_add("write", lambda *_: self._update_scenario_from_selection())
-        # Use absolute path for audio file
-        audio_file_path = os.path.join(ROOT_DIR, "temp_voice.wav")
-        self.recorder = AudioRecorder(output_filename=audio_file_path)
-        self.transcriber = SpeechTranscriber(model_name="base")
+        self.audio_file_path = os.path.join(ROOT_DIR, "temp_voice.wav")
+        self.recorder = None
+        self.transcriber = None
         self.intent_client = OllamaIntentClient.from_env()
         self.widget_bridge = WidgetBridgeClient()
         self.transcribed_text = ""
@@ -544,6 +543,35 @@ class GestureGUI:
         self.recording_status = tk.Label(audio_card, text="Aufnahme gestoppt",
                                          font=self.font_status, bg=BG_CARD, fg=TEXT_DIM)
         self.recording_status.pack(fill="x")
+
+        manual_text_frame = tk.Frame(audio_card, bg=BG_CARD)
+        manual_text_frame.pack(fill="x", pady=(10, 0))
+        tk.Label(
+            manual_text_frame,
+            text="Test-Text",
+            font=self.font_status,
+            bg=BG_CARD,
+            fg=TEXT_DIM,
+        ).pack(anchor="w")
+        manual_text_row = tk.Frame(manual_text_frame, bg=BG_CARD)
+        manual_text_row.pack(fill="x", pady=(4, 0))
+        self.manual_transcript_entry = tk.Entry(
+            manual_text_row,
+            textvariable=self.manual_transcript_var,
+            font=self.font_status,
+            bg=BG_CARD2,
+            fg=TEXT_PRI,
+            insertbackground=TEXT_PRI,
+            relief="flat",
+        )
+        self.manual_transcript_entry.pack(side="left", fill="x", expand=True, ipady=7)
+        self.manual_transcript_entry.bind("<Return>", lambda _event: self._on_manual_text_submit())
+        self.manual_transcript_button = self._make_button(
+            manual_text_row,
+            "Text übernehmen",
+            self._on_manual_text_submit,
+        )
+        self.manual_transcript_button.pack(side="left", padx=(8, 0))
 
         self.transcription_label = tk.Label(
             audio_card,
@@ -978,6 +1006,20 @@ class GestureGUI:
         widget.config(highlightbackground=BORDER, highlightthickness=1,
                       highlightcolor=ACCENT)
 
+    def _get_recorder(self):
+        if self.recorder is None:
+            from Middleware.audio_recorder import AudioRecorder
+
+            self.recorder = AudioRecorder(output_filename=self.audio_file_path)
+        return self.recorder
+
+    def _get_transcriber(self):
+        if self.transcriber is None:
+            from Middleware.speech_transcriber import SpeechTranscriber
+
+            self.transcriber = SpeechTranscriber(model_name="base")
+        return self.transcriber
+
     def _start_update_loop(self):
         self._update_ui()
         self._update_feed()
@@ -1170,6 +1212,10 @@ class GestureGUI:
         self._recording_token += 1
         token = self._recording_token
         self.recording_start_time = time.time()
+        self.transcribed_text = ""
+        self.last_voice_event = None
+        self.last_voice_source = "none"
+        self.manual_transcript_var.set("")
         self._set_recording_state(
             "starting",
             button_text="Mikrofon wird geöffnet…",
@@ -1185,7 +1231,8 @@ class GestureGUI:
         def start_in_thread():
             try:
                 logger.info("Opening audio stream...")
-                self.recorder.start_recording()
+                recorder = self._get_recorder()
+                recorder.start_recording()
                 logger.info("Recording started successfully")
                 self._post_ui(self._on_recording_started, token)
             except Exception as exc:
@@ -1199,7 +1246,8 @@ class GestureGUI:
     def _on_recording_started(self, token):
         if token != self._recording_token or self.recording_state != "starting":
             logger.warning("Recording start finished after UI state changed; stopping stale stream")
-            threading.Thread(target=self.recorder.stop_recording, daemon=True).start()
+            if self.recorder is not None:
+                threading.Thread(target=self.recorder.stop_recording, daemon=True).start()
             return
 
         self._set_recording_state(
@@ -1263,6 +1311,8 @@ class GestureGUI:
 
         def stop_in_thread():
             try:
+                if self.recorder is None:
+                    raise RuntimeError("AudioRecorder wurde noch nicht initialisiert.")
                 self.recorder.stop_recording()
                 file_size = (
                     os.path.getsize(self.recorder.output_filename)
@@ -1326,9 +1376,10 @@ class GestureGUI:
         def transcribe_in_thread():
             try:
                 logger.info("Starting speech-to-text transcription...")
-                output_file = os.path.join(ROOT_DIR, "temp_voice.wav")
+                output_file = self.audio_file_path
                 logger.info(f"Transcribing file: {output_file}")
-                text = self.transcriber.transcribe(output_file)
+                transcriber = self._get_transcriber()
+                text = transcriber.transcribe(output_file)
                 self._post_ui(self._on_transcription_finished, token, text)
             except Exception as exc:
                 logger.error(f"Transcription error: {exc}", exc_info=True)
@@ -1344,6 +1395,7 @@ class GestureGUI:
         self.transcribed_text = text or ""
         if text:
             self.last_voice_event = create_voice_event(text, source="whisper")
+            self.last_voice_source = self.last_voice_event["source"]
             logger.info(f"Transcription complete: {text}")
             self._record_study_event(
                 "voice_transcription",
@@ -1368,6 +1420,7 @@ class GestureGUI:
                 source="whisper",
                 recognition_outcome="no_recognition",
             )
+            self.last_voice_source = self.last_voice_event["source"]
             logger.warning("Transcription returned empty text")
             self._record_study_event(
                 "voice_transcription",
@@ -1391,11 +1444,13 @@ class GestureGUI:
         if token != self._recording_token:
             return
 
+        self.transcribed_text = ""
         self.last_voice_event = create_voice_event(
             "",
             source="whisper",
             recognition_outcome="no_recognition",
         )
+        self.last_voice_source = self.last_voice_event["source"]
         self._record_study_event(
             "voice_transcription",
             voice_transcript="",
@@ -1414,6 +1469,40 @@ class GestureGUI:
             transcription_text=f"Transkript: Fehler - {message}",
             transcription_color=DANGER,
         )
+
+    def _on_manual_text_submit(self):
+        if self.recording_state in {"starting", "recording", "stopping", "transcribing"}:
+            self.action_status_label.config(
+                text="Beende zuerst die laufende Aufnahmeverarbeitung.",
+                fg=TEXT_PRI,
+            )
+            return
+
+        text = self.manual_transcript_var.get().strip()
+        if not text:
+            self.action_status_label.config(text="Test-Text ist leer.", fg="#f0c040")
+            return
+
+        self.transcribed_text = text
+        self.last_voice_event = create_voice_event(text, source="manual")
+        self.last_voice_source = self.last_voice_event["source"]
+        self._record_study_event(
+            "voice_transcription",
+            voice_transcript=text,
+            recognition_outcome="correct",
+            voice_source="manual",
+            manual_input=True,
+            voice_event=self.last_voice_event,
+        )
+        self.recording_status.config(text="Text übernommen", fg=ACCENT)
+        self.transcription_label.config(text=f"Transkript: {text}", fg=ACCENT)
+        self.action_status_label.config(
+            text="Test-Text als Spracheingabe gesetzt. Jetzt Intent auswerten.",
+            fg=ACCENT,
+        )
+        self._append_log_row(f"{datetime.now().strftime('%H:%M:%S')}  TEXT {text}")
+        self.manual_transcript_entry.selection_range(0, tk.END)
+        self.manual_transcript_entry.focus_set()
 
     def _on_evaluate_intent(self):
         if self.recording_state == "recording":
@@ -1443,8 +1532,10 @@ class GestureGUI:
         transcript = (self.transcribed_text or "").strip()
         voice_event = self.last_voice_event
         if not voice_event or voice_event.get("transcript", "") != transcript:
-            voice_event = create_voice_event(transcript, source="whisper")
+            voice_source = self.last_voice_source if transcript else "none"
+            voice_event = create_voice_event(transcript, source=voice_source)
             self.last_voice_event = voice_event
+            self.last_voice_source = voice_event["source"]
 
         gesture_event = self.last_gesture_event
         if not gesture_event:
@@ -1800,7 +1891,7 @@ class GestureGUI:
         self.scenario_menu.config(state=tk.DISABLED)
         self._append_log_row(f"{datetime.now().strftime('%H:%M:%S')}  START {trial_id}")
 
-    def _build_final_trial_widget_payload(self, success):
+    def _build_final_trial_widget_payload(self, success, *, finalized_by_operator=True):
         study_context = self._trial_study_context()
         step, step_index, step_count = self._current_widget_step()
         prompt = "Trial erfolgreich beendet." if success else "Trial abgebrochen."
@@ -1828,19 +1919,22 @@ class GestureGUI:
         payload["prompt"] = prompt
         payload["overlay_title"] = "Trial beendet" if success else "Trial abgebrochen"
         payload["overlay_body"] = prompt
-        payload["finalized_by_operator"] = True
+        payload["finalized_by_operator"] = bool(finalized_by_operator)
         if success:
             payload["accepted_text"] = prompt
         else:
             payload["rejected_text"] = prompt
         return payload
 
-    def _finish_trial(self, success):
+    def _finish_trial(self, success, *, finalized_by_operator=True):
         if not self.current_trial:
             self.trial_status_label.config(text="Kein aktiver Trial.", fg=TEXT_PRI)
             return
 
-        final_widget_payload = self._build_final_trial_widget_payload(success)
+        final_widget_payload = self._build_final_trial_widget_payload(
+            success,
+            finalized_by_operator=finalized_by_operator,
+        )
         end_timestamp = now_iso()
         duration_ms = int((time.monotonic() - self.current_trial["_start_monotonic"]) * 1000)
         events = list(self.current_trial_events)
@@ -1852,6 +1946,8 @@ class GestureGUI:
         )
         wizard_intervention = any(e.get("wizard_intervention") for e in events)
         transcript = self.transcribed_text.strip()
+        voice_event = self.last_voice_event or {}
+        voice_source = voice_event.get("source") or self.last_voice_source or "none"
         recognition_outcome = self._derive_trial_recognition_outcome(events, intent)
         clarification_cycles = sum(
             1 for e in events
@@ -1888,6 +1984,9 @@ class GestureGUI:
             "recognition_outcome": recognition_outcome,
             "wizard_intervention": wizard_intervention,
             "voice_transcript": transcript,
+            "voice_source": voice_source,
+            "manual_voice_input": voice_source == "manual",
+            "voice_confidence": voice_event.get("confidence"),
             "gesture_label": gesture_label,
             "gesture_source": self.last_logged_gesture_source if gesture_label else "none",
             "gesture_confidence": self.last_logged_gesture_confidence,
@@ -1955,11 +2054,13 @@ class GestureGUI:
         self.last_logged_gesture_source = "none"
         self.last_logged_gesture_confidence = None
         self.last_voice_event = None
+        self.last_voice_source = "none"
         self.last_gesture_event = None
         self.last_widget_payload = None
         self.last_recognition_outcome = "none"
         self.last_wizard_intervention = False
         self.last_intent_result = None
+        self.manual_transcript_var.set("")
         self.last_gesture_label.config(text="Letzte Geste: NONE")
         self.transcription_label.config(text="Transkript: —", fg=TEXT_DIM)
         self.intent_label.config(text="Intent: —", fg=TEXT_DIM)
@@ -2037,7 +2138,8 @@ class GestureGUI:
 
     def _on_close(self):
         try:
-            self.recorder.close()
+            if self.recorder is not None:
+                self.recorder.close()
         except Exception as exc:
             logger.error(f"Recorder cleanup failed: {exc}", exc_info=True)
         self.root.destroy()

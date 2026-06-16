@@ -10,7 +10,16 @@ export interface GestureEventPayload {
   source?: string;
 }
 
+export interface VoiceEventPayload {
+  transcript?: string;
+  confidence?: number | null;
+  source?: string;
+  recognition_outcome?: string;
+  timestamp?: string;
+}
+
 export interface WidgetPayloadSource {
+  voice_event?: VoiceEventPayload | null;
   gesture_event?: GestureEventPayload | null;
   used_modalities?: string;
 }
