@@ -58,18 +58,20 @@ class StudyFlowTests(unittest.TestCase):
                 self.assertTrue(step.domain)
                 self.assertTrue(step.modality)
                 self.assertIn(step.expected_status, {"execute", "cancel", "clarify"})
-                self.assertTrue(step.voice_input or step.gesture_label)
+                if step.task_id != "CALL-ENDED":
+                    self.assertTrue(step.voice_input or step.gesture_label)
                 self.assertTrue(step.accepted_text)
                 self.assertTrue(step.unclear_text)
 
     def test_task_catalog_covers_first_sketch_cards(self):
         required_task_ids = {
             "CALL-INCOMING",
-            "CALL-END",
+            "CALL-ACTIVE",
+            "CALL-ENDED",
             "CALL-VOLUME",
             "AUDIO-SUGGESTION",
             "AUDIO-NEXT",
-            "AUDIO-LOUDER",
+            "AUDIO-VOLUME-UP",
             "AUDIO-RESUME",
             "MESSAGE-OPEN",
             "MESSAGE-CLOSE",
@@ -96,6 +98,11 @@ class StudyFlowTests(unittest.TestCase):
             {scenario_id_from_title(label) for label in labels},
             {scenario.study_ref for scenario in SCENARIOS},
         )
+
+    def test_audio_study_2_1_uses_volume_up_as_second_step(self):
+        scenario = scenario_from_label(next(label for label in scenario_labels() if label.startswith("2.1 |")))
+
+        self.assertEqual([step.task_id for step in scenario.flow_steps], ["AUDIO-NEXT", "AUDIO-VOLUME-UP"])
 
     def test_scenario_from_label_resolves_selected_scenario(self):
         label = next(label for label in scenario_labels() if label.startswith("4.3 |"))

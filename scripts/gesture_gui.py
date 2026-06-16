@@ -879,6 +879,14 @@ class GestureGUI:
         step_index = max(0, min(step_index, len(scenario.flow_steps) - 1))
         return scenario.flow_steps[step_index], step_index, len(scenario.flow_steps)
 
+    def _is_call_flow_1_1(self):
+        context = self._trial_study_context()
+        return context.get("study_ref") == "1.1" or context.get("scenario_id") == "STUDY-1.1"
+
+    def _is_audio_flow_2_1(self):
+        context = self._trial_study_context()
+        return context.get("study_ref") == "2.1" or context.get("scenario_id") == "STUDY-2.1"
+
     def _set_trial_step_status(self):
         if not self.current_trial:
             return
@@ -1508,10 +1516,66 @@ class GestureGUI:
         self.last_intent_result = result
         study_context = self._trial_study_context()
         current_step, current_step_index, step_count = self._current_widget_step()
+        scenario = self._current_widget_scenario()
         raw_decision = decision_from_intent_result(result)
         step_decision = decision_for_step(current_step.task_id, raw_decision, result)
 
         if step_decision == "clarify":
+            payload_step = current_step
+            payload_step_index = current_step_index
+            widget_payload = build_widget_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                used_modalities=intent_inputs.get("used_modalities"),
+                event_type="step_update",
+                decision_override=step_decision,
+            )
+        elif self._is_call_flow_1_1() and current_step.task_id == "CALL-INCOMING" and step_decision in {"execute", "cancel"}:
+            next_step_index = 1 if step_decision == "execute" else 2
+            if self.current_trial:
+                self.current_trial["current_step_index"] = next_step_index
+            payload_step = scenario.flow_steps[next_step_index]
+            payload_step_index = next_step_index
+            widget_payload = build_widget_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                used_modalities=intent_inputs.get("used_modalities"),
+                event_type="step_update",
+                decision_override=step_decision,
+            )
+        elif self._is_call_flow_1_1() and current_step.task_id == "CALL-ACTIVE" and step_decision in {"execute", "cancel"}:
+            if self.current_trial:
+                self.current_trial["current_step_index"] = 2
+            payload_step = scenario.flow_steps[2]
+            payload_step_index = 2
+            widget_payload = build_widget_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                used_modalities=intent_inputs.get("used_modalities"),
+                event_type="step_update",
+                decision_override=step_decision,
+            )
+        elif self._is_audio_flow_2_1() and current_step.task_id == "AUDIO-VOLUME-UP" and step_decision in {"execute", "cancel"}:
+            if self.current_trial:
+                self.current_trial["current_step_index"] = 1
             payload_step = current_step
             payload_step_index = current_step_index
             widget_payload = build_widget_payload(
@@ -1594,6 +1658,34 @@ class GestureGUI:
             args=(widget_payload,),
             daemon=True,
         ).start()
+        if (
+            self._is_call_flow_1_1()
+            and widget_payload["event_type"] == "step_update"
+            and widget_payload.get("task_id") == "CALL-ENDED"
+        ):
+            if self.current_trial:
+                self.current_trial["flow_completed"] = True
+
+            def finalize_call_trial():
+                if not self.current_trial or self.current_trial.get("flow_completed") is not True:
+                    return
+                self._finish_trial(True, finalized_by_operator=False)
+
+            threading.Timer(0.35, finalize_call_trial).start()
+        if (
+            self._is_audio_flow_2_1()
+            and widget_payload["event_type"] == "step_update"
+            and widget_payload.get("task_id") == "AUDIO-VOLUME-UP"
+        ):
+            if self.current_trial:
+                self.current_trial["flow_completed"] = True
+
+            def finalize_audio_trial():
+                if not self.current_trial or self.current_trial.get("flow_completed") is not True:
+                    return
+                self._finish_trial(True, finalized_by_operator=False)
+
+            threading.Timer(0.45, finalize_audio_trial).start()
         self.api_button.config(
             text="Intent auswerten",
             state=tk.NORMAL,

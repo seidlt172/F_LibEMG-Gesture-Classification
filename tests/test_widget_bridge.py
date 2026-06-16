@@ -127,7 +127,7 @@ class WidgetBridgeTests(unittest.TestCase):
             },
             step=step,
             step_index=1,
-            step_count=2,
+            step_count=3,
             trial_id="P001-T001",
             decision_override="execute",
         )
@@ -135,15 +135,15 @@ class WidgetBridgeTests(unittest.TestCase):
         self.assertEqual(payload["event_type"], "step_update")
         self.assertEqual(payload["trial_id"], "P001-T001")
         self.assertEqual(payload["step_index"], 1)
-        self.assertEqual(payload["step_count"], 2)
-        self.assertEqual(payload["task_id"], "CALL-END")
+        self.assertEqual(payload["step_count"], 3)
+        self.assertEqual(payload["task_id"], "CALL-ACTIVE")
         self.assertEqual(payload["domain"], "calls")
-        self.assertEqual(payload["prompt"], "Call laeuft.")
+        self.assertEqual(payload["prompt"], "Call läuft.")
         self.assertEqual(payload["expected_voice"], "Beenden")
 
     def test_trial_completed_payload_keeps_final_step_and_decision(self):
         scenario = get_scenario("1.1")
-        step = scenario.flow_steps[1]
+        step = scenario.flow_steps[2]
         payload = build_trial_completed_payload(
             intent_result={
                 "intent": "end_call",
@@ -158,22 +158,45 @@ class WidgetBridgeTests(unittest.TestCase):
                 "scenario_prompt": "Accept call and end it.",
             },
             step=step,
-            step_index=1,
-            step_count=2,
+            step_index=2,
+            step_count=3,
             trial_id="P001-T001",
-            decision_override="execute",
             success=True,
         )
 
         self.assertEqual(payload["event_type"], "trial_completed")
         self.assertEqual(payload["decision"], "execute")
         self.assertTrue(payload["success"])
-        self.assertEqual(payload["task_id"], "CALL-END")
+        self.assertEqual(payload["task_id"], "CALL-ENDED")
 
-    def test_step_specific_decision_treats_call_end_as_execute(self):
+    def test_step_specific_decision_treats_call_states_separately(self):
         self.assertEqual(
             decision_for_step(
-                "CALL-END",
+                "CALL-INCOMING",
+                "cancel",
+                {"intent": "accept_call", "action": "accept", "target": "call"},
+            ),
+            "execute",
+        )
+        self.assertEqual(
+            decision_for_step(
+                "CALL-INCOMING",
+                "execute",
+                {"intent": "reject_call", "action": "reject", "target": "call"},
+            ),
+            "cancel",
+        )
+        self.assertEqual(
+            decision_for_step(
+                "CALL-ACTIVE",
+                "cancel",
+                {"intent": "end_call", "action": "close", "target": "call"},
+            ),
+            "execute",
+        )
+        self.assertEqual(
+            decision_for_step(
+                "CALL-ENDED",
                 "cancel",
                 {"intent": "reject_call", "action": "reject", "target": "call"},
             ),

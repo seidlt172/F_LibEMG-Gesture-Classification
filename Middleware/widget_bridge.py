@@ -78,15 +78,22 @@ def decision_for_step(task_id: str | None, decision: str, intent_result: dict[st
     """Normalize a semantic intent decision for the currently active widget step."""
     normalized = coerce_decision(decision)
     task_id = (task_id or "").strip()
-    if task_id == "CALL-END":
-        target = (intent_result.get("target") or "").strip().lower()
-        intent = (intent_result.get("intent") or "").strip().lower()
-        action = (intent_result.get("action") or "").strip().lower()
-        if target == "call" and (
-            intent in {"end_call", "reject_call"}
-            or action in {"close", "reject", "cancel"}
-        ):
+    target = (intent_result.get("target") or "").strip().lower()
+    intent = (intent_result.get("intent") or "").strip().lower()
+    action = (intent_result.get("action") or "").strip().lower()
+
+    if task_id == "CALL-INCOMING" and target == "call":
+        if intent in {"accept_call"} or action in {"accept", "confirm"}:
             return "execute"
+        if intent in {"reject_call"} or action in {"reject", "cancel"}:
+            return "cancel"
+
+    if task_id == "CALL-ACTIVE" and target == "call":
+        if intent in {"end_call", "reject_call"} or action in {"close", "reject", "cancel"}:
+            return "execute"
+
+    if task_id == "CALL-ENDED":
+        return "execute"
     return normalized
 
 
@@ -188,6 +195,8 @@ def build_trial_completed_payload(
     gesture_event: dict[str, Any] | None = None,
     used_modalities: str | None = None,
 ) -> dict[str, Any]:
+    if decision_override is None and _step_value(step, "task_id") == "CALL-ENDED":
+        decision_override = "execute"
     payload = build_widget_payload(
         intent_result=intent_result,
         study_context=study_context,
