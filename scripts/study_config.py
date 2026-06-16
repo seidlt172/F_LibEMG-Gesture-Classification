@@ -73,6 +73,10 @@ def build_intent_context(
     scenario_prompt: str,
     gesture_source: str,
     operator_gesture: str | None = None,
+    current_task_id: str = "",
+    current_prompt: str = "",
+    expected_voice: str = "",
+    current_domain: str = "",
 ) -> str:
     operator_note = ""
     if operator_gesture:
@@ -80,10 +84,16 @@ def build_intent_context(
             f" Operator/Wizard gesture annotation: {operator_gesture}. "
             "Treat it as recovery support, not participant ground truth."
         )
+    current_step_note = ""
+    if current_task_id:
+        current_step_note = (
+            f" Current widget task: {current_task_id}. Current domain: {current_domain or 'unknown'}. "
+            f"Current prompt: {current_prompt or 'unknown'}. Expected voice command: {expected_voice or 'none'}."
+        )
     return (
         f"{base_context} Study condition: {condition}. Category: {category}. "
         f"Scenario ID: {scenario_id}. Scenario prompt: {scenario_prompt}. "
-        f"Gesture source: {gesture_source or 'none'}.{operator_note}"
+        f"Gesture source: {gesture_source or 'none'}.{current_step_note}{operator_note}"
     )
 
 

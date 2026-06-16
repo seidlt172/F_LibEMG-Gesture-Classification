@@ -915,6 +915,39 @@ class GestureGUI:
         context = self._trial_study_context()
         return context.get("study_ref") == "2.1" or context.get("scenario_id") == "STUDY-2.1"
 
+    def _is_message_flow_3_1(self):
+        context = self._trial_study_context()
+        return context.get("study_ref") == "3.1" or context.get("scenario_id") == "STUDY-3.1"
+
+    def _is_navigation_flow_4_1(self):
+        context = self._trial_study_context()
+        return context.get("study_ref") == "4.1" or context.get("scenario_id") == "STUDY-4.1"
+
+    def _contextual_intent_override(self, intent_inputs):
+        current_step, _, _ = self._current_widget_step()
+        transcript = (intent_inputs.get("transcript") or "").strip().lower()
+        is_louder_command = any(
+            token in transcript
+            for token in ("lauter", "lautstaerker", "lautstärker", "louder", "mach lauter", "mache lauter")
+        )
+        if (
+            self._is_navigation_flow_4_1()
+            and current_step.task_id in {"NAV-ACTIVE", "NAV-VOLUME-UP"}
+            and is_louder_command
+        ):
+            return {
+                "intent": "adjust_volume",
+                "action": "increase",
+                "target": "navigation",
+                "value": "increase",
+                "needs_clarification": False,
+                "clarification": "",
+                "used_modalities": intent_inputs.get("used_modalities", "voice"),
+                "llm_confidence_estimate": 1.0,
+                "error": "",
+            }
+        return None
+
     def _set_trial_step_status(self):
         if not self.current_trial:
             return
@@ -1551,6 +1584,15 @@ class GestureGUI:
             voice_event=voice_event,
             gesture_event=gesture_event,
         )
+        current_step, _, _ = self._current_widget_step()
+        contextual_result = self._contextual_intent_override(intent_inputs)
+        if contextual_result:
+            self.action_status_label.config(
+                text="Kontextregel: Navigationsansagen lauter.",
+                fg=TEXT_PRI,
+            )
+            self._on_intent_result(contextual_result, intent_inputs)
+            return
         operator_gesture = (
             intent_inputs["gesture"]
             if intent_inputs["gesture_source"] in {"manual", "wizard"}
@@ -1564,6 +1606,10 @@ class GestureGUI:
             scenario_prompt=study_context["scenario_prompt"],
             gesture_source=intent_inputs["gesture_source"],
             operator_gesture=operator_gesture,
+            current_task_id=current_step.task_id,
+            current_prompt=current_step.prompt,
+            expected_voice=current_step.voice_input,
+            current_domain=current_step.domain,
         )
         self.intent_in_progress = True
         self.api_button.config(
@@ -1682,6 +1728,66 @@ class GestureGUI:
                 event_type="step_update",
                 decision_override=step_decision,
             )
+        elif self._is_message_flow_3_1() and current_step.task_id == "MESSAGE-OPEN" and step_decision in {"execute", "cancel"}:
+            # Show the intermediate "message opened" state with Anna's response
+            if self.current_trial:
+                self.current_trial["current_step_index"] = 1
+            scenario = self._current_widget_scenario()
+            payload_step = scenario.flow_steps[1]
+            payload_step_index = 1
+            widget_payload = build_widget_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                used_modalities=intent_inputs.get("used_modalities"),
+                event_type="step_update",
+                decision_override=step_decision,
+            )
+        elif self._is_message_flow_3_1() and current_step.task_id == "MESSAGE-OPENED":
+            # When on the MESSAGE-OPENED state and user provides input, advance to MESSAGE-CLOSE
+            if self.current_trial:
+                self.current_trial["current_step_index"] = 2
+            scenario = self._current_widget_scenario()
+            payload_step = scenario.flow_steps[2]
+            payload_step_index = 2
+            widget_payload = build_widget_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                used_modalities=intent_inputs.get("used_modalities"),
+                event_type="step_update",
+                decision_override="execute",
+            )
+        elif self._is_message_flow_3_1() and current_step.task_id == "MESSAGE-CLOSE" and step_decision in {"execute", "cancel"}:
+            # Show the explicit "message closed" end state briefly before completing the trial
+            if self.current_trial:
+                self.current_trial["current_step_index"] = 2
+            scenario = self._current_widget_scenario()
+            payload_step = scenario.flow_steps[2]
+            payload_step_index = 2
+            widget_payload = build_widget_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                used_modalities=intent_inputs.get("used_modalities"),
+                event_type="step_update",
+                decision_override=step_decision,
+            )
         elif current_step_index >= step_count - 1:
             if self.current_trial:
                 self.current_trial["flow_completed"] = True
@@ -1777,6 +1883,67 @@ class GestureGUI:
                 self._finish_trial(True, finalized_by_operator=False)
 
             threading.Timer(0.45, finalize_audio_trial).start()
+        if (
+            self._is_message_flow_3_1()
+            and widget_payload["event_type"] == "step_update"
+            and widget_payload.get("task_id") == "MESSAGE-CLOSE"
+        ):
+            if self.current_trial:
+                self.current_trial["flow_completed"] = True
+
+            def emit_closed_then_finalize():
+                """Emit MESSAGE-CLOSED state before finalizing trial."""
+                if not self.current_trial or self.current_trial.get("flow_completed") is not True:
+                    return
+                
+                # Emit MESSAGE-CLOSED state
+                scenario = self._current_widget_scenario()
+                closed_step = scenario.flow_steps[3]  # 4th step (0-indexed)
+                closed_payload = build_widget_payload(
+                    intent_result=result,
+                    study_context=study_context,
+                    voice_event=intent_inputs.get("voice_event"),
+                    gesture_event=intent_inputs.get("gesture_event"),
+                    step=closed_step,
+                    step_index=3,
+                    step_count=4,
+                    trial_id=study_context.get("trial_id"),
+                    used_modalities=intent_inputs.get("used_modalities"),
+                    event_type="step_update",
+                    decision_override="execute",
+                )
+                self.last_widget_payload = closed_payload
+                threading.Thread(
+                    target=self._send_widget_payload,
+                    args=(closed_payload,),
+                    daemon=True,
+                ).start()
+                
+                # Schedule finalization after MESSAGE-CLOSED is displayed.
+                # React polls /latest every 300 ms, so keep this terminal state
+                # available long enough to be reliably rendered before completion.
+                def finalize_after_closed():
+                    if self.current_trial:
+                        self.current_trial["current_step_index"] = 3
+                    self._finish_trial(True, finalized_by_operator=False)
+                
+                threading.Timer(1.0, finalize_after_closed).start()
+
+            threading.Timer(0.35, emit_closed_then_finalize).start()
+        if (
+            self._is_navigation_flow_4_1()
+            and widget_payload["event_type"] == "step_update"
+            and widget_payload.get("task_id") == "NAV-VOLUME-UP"
+        ):
+            if self.current_trial:
+                self.current_trial["flow_completed"] = True
+
+            def finalize_navigation_trial():
+                if not self.current_trial or self.current_trial.get("flow_completed") is not True:
+                    return
+                self._finish_trial(True, finalized_by_operator=False)
+
+            threading.Timer(1.0, finalize_navigation_trial).start()
         self.api_button.config(
             text="Intent auswerten",
             state=tk.NORMAL,
@@ -1813,15 +1980,23 @@ class GestureGUI:
         self._record_study_event(
             "widget_bridge",
             widget_event_type=payload.get("event_type", "decision"),
+            widget_task_id=payload.get("task_id", ""),
+            widget_step_index=payload.get("step_index", ""),
+            widget_step_count=payload.get("step_count", ""),
             widget_decision=payload.get("decision", ""),
             widget_bridge_sent=result.sent,
             widget_bridge_error=result.error,
             widget_bridge_status=result.response_status,
+            widget_payload=payload,
         )
         if result.sent:
-            label = payload.get("event_type") or payload.get("decision")
+            sent_at = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+            event_type = payload.get("event_type") or payload.get("decision")
+            task_id = payload.get("task_id") or "NO_TASK"
+            step_index = payload.get("step_index", "")
+            step_count = payload.get("step_count", "")
             self._append_log_row(
-                f"{datetime.now().strftime('%H:%M:%S')}  WIDGET {label} sent"
+                f"{sent_at}  WIDGET {event_type} {task_id} step={step_index}/{step_count} sent"
             )
         else:
             logger.info("Widget bridge not connected: %s", result.error)
