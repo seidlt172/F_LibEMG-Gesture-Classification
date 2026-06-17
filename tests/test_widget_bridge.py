@@ -220,6 +220,14 @@ class WidgetBridgeTests(unittest.TestCase):
         )
         self.assertEqual(
             decision_for_step(
+                "CALL-VOLUME",
+                "clarify",
+                {"intent": "adjust_volume", "action": "increase", "target": "call"},
+            ),
+            "execute",
+        )
+        self.assertEqual(
+            decision_for_step(
                 "CALL-ENDED",
                 "cancel",
                 {"intent": "reject_call", "action": "reject", "target": "call"},

@@ -119,6 +119,7 @@ class PredictionState:
         self.current_display   = None   # majority-voted label shown in UI
         self.current_confidence = 0.0
         self.streamer_ok       = False
+        self.model_error       = None
         self.log               = []     # structured operator/study events
         self.trial_log         = []     # completed pilot trial summaries
         self.live_feed         = []     # raw predictions, pruned to last 10s
@@ -158,7 +159,9 @@ def prediction_thread():
             clf = pickle.load(f)
         fe = FeatureExtractor()
     except Exception as e:
-        print(f"[ERROR] Could not load model: {e}")
+        with state.lock:
+            state.model_error = str(e)
+        logger.error("Could not load model from %s: %s", MODEL_PATH, e)
         return
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -205,6 +208,7 @@ def prediction_thread():
 
         with state.lock:
             now = time.time()
+            state.model_error = None
             state.recent_preds.append((now, label, confidence))
             state.live_feed.append((now, label, confidence))
             # Prune live_feed to last 10 seconds
@@ -285,6 +289,7 @@ class GestureGUI:
         self.widget_bridge = WidgetBridgeClient()
         self.transcribed_text = ""
         self.intent_in_progress = False
+        self._closing = False
         self._update_scenario_from_selection()
 
         self._build_fonts()
@@ -292,6 +297,14 @@ class GestureGUI:
         self._start_update_loop()
         self._process_ui_queue()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _ui_is_alive(self):
+        if self._closing:
+            return False
+        try:
+            return bool(self.root.winfo_exists())
+        except tk.TclError:
+            return False
 
     def _build_fonts(self):
         family = "Helvetica"
@@ -757,6 +770,9 @@ class GestureGUI:
 
     def _process_ui_queue(self):
         """Apply UI updates that were requested by worker threads."""
+        if not self._ui_is_alive():
+            return
+
         try:
             while True:
                 callback, args, kwargs = self._ui_queue.get_nowait()
@@ -915,6 +931,10 @@ class GestureGUI:
         context = self._trial_study_context()
         return context.get("study_ref") == "2.1" or context.get("scenario_id") == "STUDY-2.1"
 
+    def _is_audio_flow_3_3(self):
+        context = self._trial_study_context()
+        return context.get("study_ref") == "3.3" or context.get("scenario_id") == "STUDY-3.3"
+
     def _is_message_flow_3_1(self):
         context = self._trial_study_context()
         return context.get("study_ref") == "3.1" or context.get("scenario_id") == "STUDY-3.1"
@@ -923,29 +943,88 @@ class GestureGUI:
         context = self._trial_study_context()
         return context.get("study_ref") == "4.1" or context.get("scenario_id") == "STUDY-4.1"
 
+    def _is_call_flow_4_3(self):
+        context = self._trial_study_context()
+        return context.get("study_ref") == "4.3" or context.get("scenario_id") == "STUDY-4.3"
+
     def _contextual_intent_override(self, intent_inputs):
         current_step, _, _ = self._current_widget_step()
         transcript = (intent_inputs.get("transcript") or "").strip().lower()
-        is_louder_command = any(
-            token in transcript
-            for token in ("lauter", "lautstaerker", "lautstärker", "louder", "mach lauter", "mache lauter")
+        normalized_transcript = (
+            transcript
+            .replace("ä", "ae")
+            .replace("ö", "oe")
+            .replace("ü", "ue")
+            .replace("ß", "ss")
         )
-        if (
-            self._is_navigation_flow_4_1()
-            and current_step.task_id in {"NAV-ACTIVE", "NAV-VOLUME-UP"}
-            and is_louder_command
-        ):
+        expected_voice = (getattr(current_step, "voice_input", "") or "").strip().lower()
+        normalized_expected_voice = (
+            expected_voice
+            .replace("ä", "ae")
+            .replace("ö", "oe")
+            .replace("ü", "ue")
+            .replace("ß", "ss")
+        )
+
+        def contextual_result(intent, action, target, value=""):
             return {
-                "intent": "adjust_volume",
-                "action": "increase",
-                "target": "navigation",
-                "value": "increase",
+                "intent": intent,
+                "action": action,
+                "target": target,
+                "value": value,
                 "needs_clarification": False,
                 "clarification": "",
                 "used_modalities": intent_inputs.get("used_modalities", "voice"),
                 "llm_confidence_estimate": 1.0,
                 "error": "",
             }
+
+        if normalized_expected_voice and normalized_transcript == normalized_expected_voice:
+            if current_step.task_id == "CALL-INCOMING":
+                return contextual_result("accept_call", "accept", "call")
+            if current_step.task_id == "CALL-ACTIVE":
+                return contextual_result("end_call", "close", "call")
+            if current_step.task_id == "CALL-VOLUME":
+                return contextual_result("adjust_volume", "increase", "call", "increase")
+            if current_step.task_id == "NAV-ACCEPT-ROUTE":
+                return contextual_result("accept_route", "accept", "route")
+            if current_step.task_id == "NAV-REJECT-ROUTE":
+                return contextual_result("reject_route", "reject", "route")
+            if current_step.task_id == "NAV-VOLUME-UP":
+                return contextual_result("adjust_volume", "increase", "navigation", "increase")
+            if current_step.task_id in {"AUDIO-SUGGESTION", "AUDIO-RESUME"}:
+                return contextual_result("play_audio", "play", "audio")
+            if current_step.task_id == "AUDIO-NEXT":
+                return contextual_result("next_track", "next", "audio")
+            if current_step.task_id == "AUDIO-VOLUME-UP":
+                return contextual_result("adjust_volume", "increase", "audio", "increase")
+            if current_step.task_id == "MESSAGE-OPEN":
+                return contextual_result("open_message", "open", "message")
+            if current_step.task_id == "MESSAGE-CLOSE":
+                return contextual_result("close_message", "close", "message")
+
+        is_louder_command = any(
+            token in transcript
+            for token in ("lauter", "lautstaerker", "lautstärker", "louder", "mach lauter", "mache lauter")
+        )
+        if (
+            self._is_call_flow_4_3()
+            and current_step.task_id == "CALL-VOLUME"
+            and is_louder_command
+        ):
+            return contextual_result("adjust_volume", "increase", "call", "increase")
+        if (
+            self._is_call_flow_4_3()
+            and current_step.task_id == "CALL-VOLUME"
+            and intent_inputs.get("gesture") == "Handgelenk drehen"
+        ):
+            return contextual_result("adjust_volume", "increase", "call", "increase")
+        if (
+            self._is_navigation_flow_4_1()
+            and current_step.task_id in {"NAV-ACTIVE", "NAV-VOLUME-UP"}
+            and is_louder_command
+        ):
+            return contextual_result("adjust_volume", "increase", "navigation", "increase")
         return None
 
     def _set_trial_step_status(self):
@@ -1059,14 +1138,20 @@ class GestureGUI:
 
     def _update_ui(self):
         """Called every UPDATE_INTERVAL_MS ms — updates prediction display."""
+        if not self._ui_is_alive():
+            return
+
         self._countdown_start = time.time()  # reset countdown
 
         # Status dot
         with state.lock:
             ok   = state.streamer_ok
             batt = state.battery
+            model_error = state.model_error
 
-        if ok:
+        if model_error:
+            self.status_dot.config(text="● NO MODEL", fg="#f0c040")
+        elif ok:
             self.status_dot.config(text="● STREAM OK", fg=ACCENT)
         else:
             self.status_dot.config(text="● NO STREAM", fg=DANGER)
@@ -1123,6 +1208,9 @@ class GestureGUI:
 
     def _update_countdown(self):
         """Updates the countdown timer text every 50ms."""
+        if not self._ui_is_alive():
+            return
+
         elapsed   = time.time() - self._countdown_start
         remaining = max((UPDATE_INTERVAL_MS / 1000.0) - elapsed, 0.0)
         self.countdown_label.config(text=f"{remaining:.2f}s", fg=TEXT_PRI)
@@ -1130,6 +1218,9 @@ class GestureGUI:
 
     def _update_feed(self):
         """Called every 200ms — pushes new raw predictions into the live feed listbox."""
+        if not self._ui_is_alive():
+            return
+
         with state.lock:
             feed = list(state.live_feed)
 
@@ -1213,7 +1304,7 @@ class GestureGUI:
 
         # Flash the log button briefly
         self.log_btn.config(bg=ACCENT)
-        self.root.after(300, lambda: self.log_btn.config(bg=ACCENT_DIM))
+        self.root.after(300, lambda: self._ui_is_alive() and self.log_btn.config(bg=ACCENT_DIM))
 
     def _log_predicted(self):
         if self._log_btn_enabled and hasattr(self, '_current_label') and self._current_label is not None:
@@ -1274,7 +1365,10 @@ class GestureGUI:
 
         thread = threading.Thread(target=start_in_thread, daemon=True)
         thread.start()
-        self.root.after(15000, lambda: self._check_recording_start_timeout(token, thread))
+        self.root.after(
+            15000,
+            lambda: self._ui_is_alive() and self._check_recording_start_timeout(token, thread),
+        )
 
     def _on_recording_started(self, token):
         if token != self._recording_token or self.recording_state != "starting":
@@ -1692,6 +1786,26 @@ class GestureGUI:
                 event_type="step_update",
                 decision_override=step_decision,
             )
+        elif self._is_call_flow_4_3() and current_step.task_id == "CALL-INCOMING" and step_decision in {"execute", "cancel"}:
+            next_step_index = min(current_step_index + 1, step_count - 1)
+            if self.current_trial:
+                self.current_trial["current_step_index"] = next_step_index
+            payload_step = scenario.flow_steps[next_step_index]
+            payload_step_index = next_step_index
+            widget_payload = build_widget_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                used_modalities=intent_inputs.get("used_modalities"),
+                event_type="step_update",
+                decision_override=step_decision,
+            )
+            widget_payload["decision"] = ""
         elif self._is_call_flow_1_1() and current_step.task_id == "CALL-ACTIVE" and step_decision in {"execute", "cancel"}:
             if self.current_trial:
                 self.current_trial["current_step_index"] = 2
@@ -1728,6 +1842,26 @@ class GestureGUI:
                 event_type="step_update",
                 decision_override=step_decision,
             )
+        elif self._is_audio_flow_3_3() and current_step.task_id == "AUDIO-RESUME" and step_decision in {"execute", "cancel"}:
+            next_step_index = min(current_step_index + 1, step_count - 1)
+            if self.current_trial:
+                self.current_trial["current_step_index"] = next_step_index
+            payload_step = scenario.flow_steps[next_step_index]
+            payload_step_index = next_step_index
+            widget_payload = build_widget_payload(
+                intent_result=result,
+                study_context=study_context,
+                voice_event=intent_inputs.get("voice_event"),
+                gesture_event=intent_inputs.get("gesture_event"),
+                step=payload_step,
+                step_index=payload_step_index,
+                step_count=step_count,
+                trial_id=study_context.get("trial_id"),
+                used_modalities=intent_inputs.get("used_modalities"),
+                event_type="step_update",
+                decision_override=step_decision,
+            )
+            widget_payload["decision"] = ""
         elif self._is_message_flow_3_1() and current_step.task_id == "MESSAGE-OPEN" and step_decision in {"execute", "cancel"}:
             # Show the intermediate "message opened" state with Anna's response
             if self.current_trial:
@@ -1750,11 +1884,12 @@ class GestureGUI:
             )
         elif self._is_message_flow_3_1() and current_step.task_id == "MESSAGE-OPENED":
             # When on the MESSAGE-OPENED state and user provides input, advance to MESSAGE-CLOSE
-            if self.current_trial:
-                self.current_trial["current_step_index"] = 2
             scenario = self._current_widget_scenario()
-            payload_step = scenario.flow_steps[2]
-            payload_step_index = 2
+            close_step_index = min(2, len(scenario.flow_steps) - 1)
+            if self.current_trial:
+                self.current_trial["current_step_index"] = close_step_index
+            payload_step = scenario.flow_steps[close_step_index]
+            payload_step_index = close_step_index
             widget_payload = build_widget_payload(
                 intent_result=result,
                 study_context=study_context,
@@ -1770,11 +1905,12 @@ class GestureGUI:
             )
         elif self._is_message_flow_3_1() and current_step.task_id == "MESSAGE-CLOSE" and step_decision in {"execute", "cancel"}:
             # Show the explicit "message closed" end state briefly before completing the trial
-            if self.current_trial:
-                self.current_trial["current_step_index"] = 2
             scenario = self._current_widget_scenario()
-            payload_step = scenario.flow_steps[2]
-            payload_step_index = 2
+            close_step_index = min(2, len(scenario.flow_steps) - 1)
+            if self.current_trial:
+                self.current_trial["current_step_index"] = close_step_index
+            payload_step = scenario.flow_steps[close_step_index]
+            payload_step_index = close_step_index
             widget_payload = build_widget_payload(
                 intent_result=result,
                 study_context=study_context,
@@ -1885,6 +2021,7 @@ class GestureGUI:
             threading.Timer(0.45, finalize_audio_trial).start()
         if (
             self._is_message_flow_3_1()
+            and current_step.task_id == "MESSAGE-CLOSE"
             and widget_payload["event_type"] == "step_update"
             and widget_payload.get("task_id") == "MESSAGE-CLOSE"
         ):
@@ -1896,17 +2033,35 @@ class GestureGUI:
                 if not self.current_trial or self.current_trial.get("flow_completed") is not True:
                     return
                 
-                # Emit MESSAGE-CLOSED state
                 scenario = self._current_widget_scenario()
-                closed_step = scenario.flow_steps[3]  # 4th step (0-indexed)
+                if len(scenario.flow_steps) > 3:
+                    closed_step = scenario.flow_steps[3]
+                    closed_step_index = 3
+                    closed_step_count = len(scenario.flow_steps)
+                else:
+                    closed_step = {
+                        "task_id": "MESSAGE-CLOSED",
+                        "domain": "messages",
+                        "prompt": "Nachricht geschlossen.",
+                        "overlay_title": "Nachricht geschlossen",
+                        "overlay_body": "Inhalt ausgeblendet.",
+                        "modality": "voice",
+                        "expected_status": "execute",
+                        "accepted_text": "Nachricht geschlossen.",
+                        "rejected_text": "Nachricht geschlossen.",
+                        "unclear_text": "Soll die Nachricht geschlossen werden?",
+                    }
+                    closed_step_index = step_count
+                    closed_step_count = step_count + 1
+
                 closed_payload = build_widget_payload(
                     intent_result=result,
                     study_context=study_context,
                     voice_event=intent_inputs.get("voice_event"),
                     gesture_event=intent_inputs.get("gesture_event"),
                     step=closed_step,
-                    step_index=3,
-                    step_count=4,
+                    step_index=closed_step_index,
+                    step_count=closed_step_count,
                     trial_id=study_context.get("trial_id"),
                     used_modalities=intent_inputs.get("used_modalities"),
                     event_type="step_update",
@@ -2312,6 +2467,7 @@ class GestureGUI:
         )
 
     def _on_close(self):
+        self._closing = True
         try:
             if self.recorder is not None:
                 self.recorder.close()

@@ -1,6 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Decision, LatestResponse, WidgetPayload } from "./types";
+import { AudioWidget as AudioPopupDomainWidget } from "./widgets/AudioWidget";
+import { CallWidget as CallPopupDomainWidget } from "./widgets/CallWidget";
+import { MessageWidget as MessagePopupDomainWidget } from "./widgets/MessageWidget";
+import { NavigationWidget as NavigationPopupDomainWidget } from "./widgets/NavigationWidget";
+import {
+  normalizeGestureLabel,
+  popupModalityVisibility,
+  previewChipProps,
+  type CockpitState,
+  type PreviewGesture,
+} from "./widgets/shared";
 import "./styles.css";
 
 const bridgeUrl = import.meta.env.VITE_WIDGET_EVENT_URL ?? "http://127.0.0.1:8765/latest";
@@ -20,43 +31,6 @@ type PreviewScenario =
   | "study-3-3"
   | "study-4-3";
 
-type PreviewGesture =
-  | "Daumen hoch"
-  | "Swipe"
-  | "Handgelenk drehen"
-  | "Zeigen / Tippen"
-  | "Annehmen"
-  | "Ablehnen"
-  | "Beenden"
-  | "Auflegen"
-  | "Anruf beenden"
-  | "Nächstes Lied"
-  | "Lauter"
-  | "Lauter machen"
-  | "Nachricht öffnen"
-  | "Schließen"
-  | "Zeigen/Tippen"
-  | "Zeigen"
-  | "Tippen";
-
-interface CockpitState {
-  activePayload: WidgetPayload | null;
-  completed: boolean;
-  feedback: string;
-  decision: Decision | "";
-  callActive: boolean;
-  callIncoming: boolean;
-  callEnded: boolean;
-  routeActive: boolean;
-  routeIndex: number;
-  audioPlaying: boolean;
-  track: string;
-  messageOpen: boolean;
-  volume: number;
-  ambientColor: string;
-  ambientBrightness: number;
-  seatLevel: number;
-}
 
 function createIdleState(): CockpitState {
   return {
@@ -598,10 +572,11 @@ function applyPreviewGesture(payload: WidgetPayload | null, gesture: PreviewGest
     const isLouder = gesture === "Lauter" || gesture === "Lauter machen" || gesture === "Handgelenk drehen";
     return voiceStepPayload(payload, {
       task_id: isLouder ? "AUDIO-VOLUME-UP" : "AUDIO-NEXT",
-      prompt: isLouder ? "Lautstärke erhöht." : "Song läuft.",
+      event_type: isLouder ? "trial_completed" : "step_update",
+      prompt: isLouder ? "Lautstärke erhöht." : "Nächstes Lied spielt.",
       overlay_title: "Audio",
-      overlay_body: isLouder ? "Lautstärke wird erhöht." : "Low Beam wird abgespielt.",
-      expected_voice: isLouder ? "Lauter" : "Nächstes Lied",
+      overlay_body: isLouder ? "City Lights wird lauter abgespielt." : "City Lights wird abgespielt.",
+      expected_voice: isLouder ? "Lauter" : "Lauter",
       accepted_text: isLouder ? "Lautstärke erhöht." : "Nächstes Lied spielt.",
       unclear_text: isLouder ? "Soll die Musik lauter werden?" : "Soll das nächste Lied abgespielt werden?",
       decision: "execute",
@@ -1183,19 +1158,19 @@ function InteractionPopup({
   }
 
   if (isCallDomain(payload.domain)) {
-    return <CallPopupWidget payload={payload} state={state} onPreviewGesture={onPreviewGesture} />;
+    return <CallPopupDomainWidget payload={payload} state={state} onPreviewGesture={onPreviewGesture} />;
   }
 
   if (isNavigationDomain(payload.domain)) {
-    return <NavigationPopupWidget payload={payload} state={state} onPreviewGesture={onPreviewGesture} />;
+    return <NavigationPopupDomainWidget payload={payload} state={state} onPreviewGesture={onPreviewGesture} />;
   }
 
   if (isAudioDomain(payload.domain)) {
-    return <AudioPopupWidget payload={payload} state={state} onPreviewGesture={onPreviewGesture} />;
+    return <AudioPopupDomainWidget payload={payload} state={state} onPreviewGesture={onPreviewGesture} />;
   }
 
   if (isMessagesDomain(payload.domain)) {
-    return <MessagesPopupWidget payload={payload} state={state} onPreviewGesture={onPreviewGesture} />;
+    return <MessagePopupDomainWidget payload={payload} state={state} onPreviewGesture={onPreviewGesture} />;
   }
 
   if (isClimateDomain(payload.domain)) {
@@ -1247,937 +1222,14 @@ function isClimateDomain(domain: WidgetPayload["domain"]): boolean {
   return domain === "climate" || String(domain) === "seat_heating" || String(domain) === "seat-heating";
 }
 
-function normalizeGestureLabel(label: string | null | undefined): string {
-  const normalized = String(label ?? "").toLowerCase().replace(/\s+/g, "").replace(/\//g, "");
-  if (normalized === "zeigentippen" || normalized === "zeigen" || normalized === "tippen") {
-    return "tap";
-  }
-  return normalized;
-}
-
-function previewChipProps(gesture: PreviewGesture, onPreviewGesture?: (gesture: PreviewGesture) => void) {
-  return onPreviewGesture
-    ? {
-        role: "button",
-        tabIndex: 0,
-        onClick: () => onPreviewGesture(gesture),
-        onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onPreviewGesture(gesture);
-          }
-        },
-      }
-    : {};
-}
-
-function popupModalityVisibility(payload: WidgetPayload) {
-  if (payload.condition === "Voice only") {
-    return { showVoiceActions: true, showGestureActions: false };
-  }
-
-  if (payload.condition === "Gesture only") {
-    return { showVoiceActions: false, showGestureActions: true };
-  }
-
-  if (payload.condition === "CAN use both") {
-    return { showVoiceActions: true, showGestureActions: true };
-  }
-
-  const usedModalities = payload.source?.used_modalities ?? "";
-  return {
-    showVoiceActions: Boolean(payload.expected_voice || usedModalities.includes("voice")),
-    showGestureActions: Boolean(payload.expected_gesture || usedModalities.includes("gesture")),
-  };
-}
-
-function voiceActionLabel(payload: WidgetPayload): string {
-  if (payload.expected_voice) {
-    return payload.expected_voice;
-  }
-
-  switch (payload.task_id) {
-    case "CALL-INCOMING":
-    case "NAV-ACCEPT-ROUTE":
-      return "Annehmen";
-    case "NAV-REJECT-ROUTE":
-      return "Route ablehnen";
-    case "NAV-ACTIVE":
-      return "Lauter";
-    case "CALL-ACTIVE":
-      return "Auflegen";
-    case "CALL-ENDED":
-      return "";
-    case "AUDIO-NEXT":
-      return "Nächstes Lied";
-    case "AUDIO-VOLUME-UP":
-      return "Lauter";
-    case "NAV-VOLUME-UP":
-      return "Lauter machen";
-    case "MESSAGE-OPEN":
-      return "Nachricht öffnen";
-    case "MESSAGE-CLOSE":
-      return "Schließen";
-    default:
-      return "Ausführen";
-  }
-}
-
-function previewGestureForVoiceTask(payload: WidgetPayload): PreviewGesture {
-  switch (payload.task_id) {
-    case "AUDIO-NEXT":
-    case "MESSAGE-CLOSE":
-      return "Swipe";
-    case "AUDIO-VOLUME-UP":
-    case "NAV-ACTIVE":
-    case "NAV-VOLUME-UP":
-      return "Handgelenk drehen";
-    case "MESSAGE-OPEN":
-      return "Zeigen / Tippen";
-    case "CALL-INCOMING":
-    case "NAV-ACCEPT-ROUTE":
-    case "CALL-ACTIVE":
-      return "Daumen hoch";
-    case "NAV-REJECT-ROUTE":
-      return "Ablehnen";
-    default:
-      return "Daumen hoch";
-  }
-}
-
-function voicePreviewActions(payload: WidgetPayload): Array<{ label: string; action: PreviewGesture; kind?: "accept" | "decline" }> | null {
-  if (!payload.condition || payload.condition !== "Voice only") {
-    return null;
-  }
-
-  if (payload.study_ref === "1.1" || payload.scenario_id === "STUDY-1.1") {
-    if (payload.task_id === "CALL-ACTIVE") {
-      return [
-        { label: "Auflegen", action: "Auflegen", kind: "decline" },
-      ];
-    }
-    if (payload.task_id === "CALL-ENDED") {
-      return null;
-    }
-    return [
-      { label: "Annehmen", action: "Annehmen", kind: "accept" },
-      { label: "Ablehnen", action: "Ablehnen", kind: "decline" },
-    ];
-  }
-
-  if (payload.study_ref === "2.1" || payload.scenario_id === "STUDY-2.1") {
-    return [
-      { label: "Nächstes Lied", action: "Nächstes Lied", kind: "accept" },
-      { label: "Lauter", action: "Lauter", kind: "accept" },
-    ];
-  }
-
-  if (payload.study_ref === "3.1" || payload.scenario_id === "STUDY-3.1") {
-    if (payload.task_id === "MESSAGE-CLOSED" || payload.task_id === "MESSAGE-OPENED") {
-      return [];
-    }
-    if (payload.task_id === "MESSAGE-CLOSE") {
-      return [{ label: "Schließen", action: "Schließen", kind: "decline" }];
-    }
-    return [{ label: "Nachricht öffnen", action: "Nachricht öffnen", kind: "accept" }];
-  }
-
-  if (payload.study_ref === "4.1" || payload.scenario_id === "STUDY-4.1") {
-    if (payload.task_id === "NAV-ACTIVE") {
-      return [{ label: "Lauter", action: "Lauter", kind: "accept" }];
-    }
-    if (payload.task_id === "NAV-VOLUME-UP") {
-      return [];
-    }
-    return [
-      { label: "Annehmen", action: "Annehmen", kind: "accept" },
-      { label: "Ablehnen", action: "Ablehnen", kind: "decline" },
-    ];
-  }
-
-  return null;
-}
-
-function CallPopupWidget({ payload, state, onPreviewGesture }: { payload: WidgetPayload; state: CockpitState; onPreviewGesture?: (gesture: PreviewGesture) => void }) {
-  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
-  const normalizedGesture = normalizeGestureLabel(gestureLabel);
-  const intentText = `${payload.intent ?? ""} ${payload.action ?? ""} ${payload.target ?? ""}`.toLowerCase();
-  const isClarify = payload.decision === "clarify";
-  const isWaiting = !isClarify && !payload.decision && !gestureLabel;
-  const clarifyText = payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen.";
-  const isIncomingTask = payload.task_id === "CALL-INCOMING";
-  const isActiveTask = payload.task_id === "CALL-ACTIVE";
-  const isEndedTask = payload.task_id === "CALL-ENDED";
-  const isVolumeTask = payload.task_id === "CALL-VOLUME";
-  const isRotate = normalizedGesture === "handgelenkdrehen";
-  const isVolumeIntent = intentText.includes("volume") || intentText.includes("laut") || intentText.includes("increase");
-  const isVolumeAdjusting = !isClarify && isVolumeTask && (isRotate || isVolumeIntent);
-  const showEndedView = isEndedTask || payload.event_type === "trial_completed";
-  const { showVoiceActions, showGestureActions } = popupModalityVisibility(payload);
-  const previewActions = onPreviewGesture ? voicePreviewActions(payload) : null;
-  const stageClass = isClarify
-    ? "call-popup--clarify"
-    : showEndedView
-      ? "call-popup--ended"
-      : isActiveTask
-        ? "call-popup--active"
-        : isVolumeAdjusting
-          ? "call-popup--volume call-popup--volume-adjusted"
-          : isVolumeTask
-            ? "call-popup--volume"
-            : "call-popup--incoming";
-  const body = isClarify
-    ? payload.overlay_body || "Anruf mit Alex."
-    : showEndedView
-      ? payload.accepted_text || payload.overlay_body || "Anruf beendet."
-      : isActiveTask
-        ? payload.overlay_body || payload.prompt || "Anruf mit Alex läuft."
-        : isVolumeTask
-          ? isVolumeAdjusting
-            ? payload.accepted_text || "Anruflautstärke geregelt."
-            : payload.overlay_body || payload.prompt || "Anruf mit Alex läuft."
-          : payload.overlay_body || payload.prompt || "Max Mustermann ruft an.";
-  const callVolume = Math.max(0, Math.min(100, isVolumeAdjusting ? Math.max(state.volume, 72) : state.volume));
-  const callStatus = showEndedView
-    ? "Anruf beendet"
-    : isActiveTask || isVolumeTask
-      ? "Gespräch aktiv"
-      : "Eingehender Anruf";
-  const contactLabel = isActiveTask || isVolumeTask || showEndedView ? "Alex · 00:42" : "Max Mustermann";
-
-  return (
-    <div className={`interaction-popup call-popup-shell ${payload.event_type || ""}`}>
-      <section className={`call-popup ${stageClass}`}>
-        <div className="call-popup__header">
-          <div>
-            <span className="eyebrow call-popup__eyebrow">Anruf</span>
-          </div>
-        </div>
-
-        <div className="call-popup__content">
-          <div className="call-popup__details">
-            <span className="call-popup__label">{contactLabel}</span>
-            <strong>{callStatus}</strong>
-            <p>{body}</p>
-            {isVolumeTask && (
-              <div className="call-popup__volume-panel">
-                <div className="call-popup__volume-row">
-                  <span>Anruflautstärke</span>
-                  <strong>{callVolume}%</strong>
-                </div>
-                <div className="call-popup__volume" aria-label={`Anruflautstärke ${callVolume}%`}>
-                  <span style={{ width: `${callVolume}%` }} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {!isClarify && !showEndedView && (isVolumeTask ? (
-          <>
-            {showGestureActions && (
-              <div className="call-popup__actions" aria-label="Anruflautstärke">
-                <span className={`call-popup__chip call-popup__chip--volume ${isVolumeAdjusting ? "call-popup__chip--active" : ""}`} {...previewChipProps("Handgelenk drehen", onPreviewGesture)}>
-                  <span aria-hidden>↻</span>Handgelenk drehen
-                </span>
-              </div>
-            )}
-            {showVoiceActions && (
-              <div className="call-popup__actions" aria-label="Anruflautstärke per Sprache">
-                <button className={`call-popup__button call-popup__button--accept ${isVolumeAdjusting ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Handgelenk drehen") : undefined}>
-                  {payload.expected_voice || "Mach lauter"}
-                </button>
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            {showGestureActions && isIncomingTask && (
-              <div className="call-popup__actions" aria-label="Anrufgesten">
-                <span className={`call-popup__chip call-popup__chip--accept ${gestureLabel === "Daumen hoch" ? "call-popup__chip--active" : ""}`} {...previewChipProps("Daumen hoch", onPreviewGesture)}>
-                  <span aria-hidden>👍</span>Daumen hoch
-                </span>
-                <span className={`call-popup__chip call-popup__chip--decline ${gestureLabel === "Swipe" ? "call-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-                  <span aria-hidden>↔</span>Swipe
-                </span>
-              </div>
-            )}
-            {showVoiceActions && (
-              <div className="call-popup__actions" aria-label="Anrufaktionen">
-                {previewActions ? previewActions.map((action) => (
-                  <button
-                    key={action.label}
-                    className={`call-popup__button call-popup__button--${action.kind === "decline" ? "decline" : "accept"}`}
-                    type="button"
-                    onClick={() => onPreviewGesture?.(action.action)}
-                  >
-                    {action.label}
-                  </button>
-                )) : isIncomingTask ? (
-                  <>
-                    <button className={`call-popup__button call-popup__button--accept ${payload.decision === "execute" && (payload.task_id === "CALL-INCOMING" || payload.task_id === "CALL-ACTIVE") ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Annehmen") : undefined}>
-                      Annehmen
-                    </button>
-                    <button className={`call-popup__button call-popup__button--decline ${payload.decision === "cancel" ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Ablehnen") : undefined}>
-                      Ablehnen
-                    </button>
-                  </>
-                ) : isActiveTask ? (
-                  <>
-                    <button className={`call-popup__button call-popup__button--decline ${gestureLabel === "Auflegen" ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Auflegen") : undefined}>
-                      Auflegen
-                    </button>
-                    
-                  </>
-                ) : null}
-              </div>
-            )}
-          </>
-        ))}
-      </section>
-    </div>
-  );
-}
-
-function NavigationPopupWidget({ payload, state, onPreviewGesture }: { payload: WidgetPayload; state: CockpitState; onPreviewGesture?: (gesture: PreviewGesture) => void }) {
-  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
-  const normalizedGesture = normalizeGestureLabel(gestureLabel);
-  const isClarify = payload.decision === "clarify";
-  const isWaiting = !isClarify && !payload.decision && !gestureLabel;
-  const clarifyText = payload.unclear_text || payload.prompt || "Bitte Auswahl wiederholen.";
-  const isRouteSelectionScenario = isNavigationScenario32(payload);
-  const isRejectRouteScenario = isNavigationRejectScenario13(payload);
-  const isNextRouteTask = payload.task_id === "NAV-NEXT-ROUTE";
-  const isSelectRouteTask = payload.task_id === "NAV-SELECT-SECOND";
-  const isActiveTask = payload.task_id === "NAV-ACTIVE";
-  const isVolumeTask = payload.task_id === "NAV-VOLUME-UP";
-  const isVoiceNavScenario41 = payload.condition === "Voice only" && (payload.study_ref === "4.1" || payload.scenario_id === "STUDY-4.1");
-  const isRouteBrowseSelectTask = isNextRouteTask || isSelectRouteTask;
-  const isSwipe = normalizedGesture === "swipe";
-  const isTap = normalizedGesture === "tap";
-  const routeSelectionStage = isRouteSelectionScenario ? navigationScenario32Stage(payload) : "standard";
-  const rejectRouteStage = isRejectRouteScenario ? navigationScenario13Stage(payload) : "waiting";
-  const isRouteSelectionWaiting = routeSelectionStage === "waiting";
-  const isRouteSelectionSwiped = routeSelectionStage === "swiped";
-  const isRouteSelectionConfirmed = routeSelectionStage === "confirmed";
-  const isRouteSelectionCompleted = routeSelectionStage === "completed";
-  const isRejectRouteWaiting = rejectRouteStage === "waiting";
-  const isRejectRouteDetected = rejectRouteStage === "detected";
-  const isRejectRouteCompleted = rejectRouteStage === "completed";
-  const rejectRouteDetectedBySwipe = normalizedGesture === "swipe";
-  const rejectRouteDetectedByVoice = !rejectRouteDetectedBySwipe && `${payload.intent ?? ""} ${payload.action ?? ""} ${payload.target ?? ""} ${payload.expected_voice ?? ""} ${payload.prompt ?? ""} ${payload.overlay_body ?? ""}`.toLowerCase().includes("ablehnen");
-  const isBrowsingNextRoute = !isClarify && isNextRouteTask && (isSwipe || payload.decision === "execute");
-  const isSelected = !isClarify && (isSelectRouteTask ? (isTap || payload.decision === "execute") : isTap);
-  const isNavigationActive = !isClarify && isActiveTask;
-  const isAccepted = !isClarify && !isNextRouteTask && !isSelectRouteTask && !isActiveTask && !isVolumeTask && (gestureLabel === "Daumen hoch" || payload.decision === "execute");
-  const isDeclined = !isClarify && !isNextRouteTask && (isSwipe || payload.decision === "cancel");
-  const isVolumeUp = !isClarify && isVolumeTask && (payload.decision === "execute" || normalizedGesture === "handgelenkdrehen");
-  const { showVoiceActions, showGestureActions } = popupModalityVisibility(payload);
-  const showVoiceDecline = payload.condition !== "Voice only" || payload.task_id === "NAV-ACCEPT-ROUTE";
-  const previewActions = onPreviewGesture ? voicePreviewActions(payload) : null;
-  const shouldShowVoiceControls = !isVoiceNavScenario41 || (payload.task_id === "NAV-ACCEPT-ROUTE" && !isAccepted && !isDeclined) || isActiveTask;
-  const routeName = isRouteSelectionScenario
-    ? isRouteSelectionCompleted
-      ? "Route gestartet"
-      : isRouteSelectionConfirmed
-        ? "Route 2 ausgewählt"
-        : isRouteSelectionSwiped
-          ? "Swipe erkannt"
-          : "Route auswählen"
-    : isRejectRouteScenario
-      ? isRejectRouteCompleted
-        ? "Route abgelehnt"
-        : isRejectRouteDetected
-          ? rejectRouteDetectedBySwipe
-            ? "Swipe erkannt"
-            : rejectRouteDetectedByVoice
-              ? "Sprachbefehl erkannt"
-              : "Ablehnung erkannt"
-          : "Routenänderung"
-    : isSelected
-      ? "Alternative Route"
-      : isBrowsingNextRoute
-        ? "Nächster Vorschlag"
-      : isNavigationActive
-        ? "Navigation läuft"
-      : isVolumeTask
-        ? "Navigation läuft"
-      : isAccepted
-        ? "Schnellere Route"
-      : isDeclined
-        ? "Route abgelehnt"
-        : "Schnellere Route";
-  const stageClass = isRejectRouteScenario
-    ? isRejectRouteCompleted || isRejectRouteDetected
-      ? "navigation-popup--route-rejected"
-      : "navigation-popup--route-waiting"
-    : isClarify
-      ? "navigation-popup--clarify"
-    : isRouteSelectionCompleted
-      ? "navigation-popup--route-completed"
-    : isRouteSelectionConfirmed
-      ? "navigation-popup--route-confirmed"
-    : isRouteSelectionSwiped
-      ? "navigation-popup--route-swiped"
-    : isRouteSelectionWaiting
-      ? "navigation-popup--route-waiting"
-    : isVolumeUp
-      ? "navigation-popup--accepted"
-    : isNavigationActive
-      ? "navigation-popup--accepted"
-    : isVolumeTask
-      ? "navigation-popup--suggested"
-    : isBrowsingNextRoute
-      ? "navigation-popup--browsing"
-    : isAccepted
-      ? "navigation-popup--accepted"
-      : isDeclined
-        ? "navigation-popup--declined"
-      : isSelected
-          ? "navigation-popup--selected"
-          : "navigation-popup--suggested";
-  const body = isRejectRouteScenario
-    ? isRejectRouteCompleted
-      ? "Route wird abgelehnt."
-      : isRejectRouteDetected
-        ? "Route wurde angenommen."
-        : payload.overlay_body || payload.prompt || "Neue Route verfügbar."
-    : isClarify
-      ? payload.overlay_body || "Route verfügbar."
-    : isRouteSelectionCompleted
-      ? "Route 2 gestartet."
-    : isRouteSelectionConfirmed
-      ? "Route 2 ist ausgewählt."
-    : isRouteSelectionSwiped
-      ? "Route 2 ausgewählt."
-    : isRouteSelectionWaiting
-      ? "Wähle zwischen Route 1 und Route 2."
-    : isVolumeUp
-      ? "Route ist aktiv."
-    : isNavigationActive
-      ? payload.overlay_body || "Route ist aktiv. Ansagelautstärke: normal."
-    : isVolumeTask
-      ? payload.overlay_body || payload.prompt || "Ansagelautstärke: 40 Prozent."
-    : isBrowsingNextRoute
-      ? payload.accepted_text || "Nächster Routenvorschlag angezeigt."
-    : isAccepted
-      ? payload.accepted_text || "Route übernommen"
-      : isDeclined
-        ? payload.rejected_text || "Route abgelehnt"
-    : isSelected
-          ? payload.accepted_text || "Route ausgewählt"
-          : payload.overlay_body || payload.prompt || "Neue Route verfügbar.";
-  const routeCards = [
-    {
-      id: 1,
-      title: "Route 1",
-      summary: "Schnellste Route",
-      detail: "18 min",
-    },
-    {
-      id: 2,
-      title: "Route 2",
-      summary: "Ruhigere Route",
-      detail: "21 min",
-    },
-  ] as const;
-  const selectedRouteId = isRouteSelectionScenario && !isRouteSelectionWaiting ? 2 : isSelectRouteTask && isSelected ? 2 : 1;
-  const rejectRouteLabel = isRejectRouteCompleted
-    ? "Route abgelehnt"
-    : isRejectRouteDetected
-      ? rejectRouteDetectedBySwipe
-        ? "Swipe erkannt"
-        : rejectRouteDetectedByVoice
-          ? "Sprachbefehl erkannt"
-          : "Ablehnung erkannt"
-      : "Neue Route vorgeschlagen";
-  const rejectRouteTitle = isRejectRouteCompleted ? "Route abgelehnt" : "Neue Route vorgeschlagen";
-  const rejectRouteSubline = isRejectRouteCompleted
-    ? "Die alternative Route wird nicht übernommen."
-    : "Schnellste Route · 18 min";
-
-  return (
-    <div className={`interaction-popup navigation-popup-shell ${payload.event_type || ""}`}>
-      <section className={`navigation-popup ${stageClass}`}>
-        <div className="navigation-popup__header">
-          <div>
-            <span className="eyebrow navigation-popup__eyebrow">Navigation</span>
-          </div>
-        </div>
-
-        <div className="navigation-popup__content">
-          <div className="navigation-popup__details">
-            <span className="navigation-popup__label">{routeName}</span>
-            <strong>{body}</strong>
-            {isRouteSelectionScenario ? (
-              isRouteSelectionCompleted ? (
-                <div className="navigation-popup__final-view" aria-label="Navigation gestartet">
-                  <div className="navigation-popup__route-preview navigation-popup__route-preview--final">
-                    <div className="navigation-mini-map navigation-mini-map--final" aria-hidden>
-                      <span className="navigation-map-line primary" />
-                      <span className="navigation-map-line secondary" />
-                      <span className="navigation-map-pin start" />
-                      <span className="navigation-map-pin end" />
-                    </div>
-                    <div className="navigation-popup__route-summary">
-                      <span className="navigation-popup__route-badge navigation-popup__route-badge--success">✓ Auswahl bestätigt</span>
-                      <strong>Route 2 gestartet</strong>
-                      <p>Ruhigere Route · 21 min</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="navigation-popup__route-grid" aria-label="Route auswählen">
-                  {routeCards.map((route) => {
-                    const selected = route.id === selectedRouteId;
-                    return (
-                      <button
-                        key={route.id}
-                        className={`navigation-popup__route-card ${selected ? "navigation-popup__route-card--selected" : ""}`}
-                        type="button"
-                        onClick={onPreviewGesture ? () => onPreviewGesture(route.id === 1 ? "Swipe" : "Zeigen / Tippen") : undefined}
-                      >
-                        <div className="navigation-popup__route-card-head">
-                          <span className="navigation-popup__route-name">{route.title}</span>
-                          <span className={`navigation-popup__route-badge ${selected ? "navigation-popup__route-badge--selected" : ""}`}>
-                            {selected ? "Ausgewählt" : "Option"}
-                          </span>
-                        </div>
-                        <strong>{route.summary}</strong>
-                        <div className="navigation-popup__route-card-meta">
-                          <span>{route.detail}</span>
-                          {route.id === 1 ? <span>Direkt</span> : <span>Leiser</span>}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )
-            ) : isRejectRouteScenario ? (
-              <div className="navigation-popup__reject-view" aria-label="Route ablehnen">
-                <div className="navigation-popup__route-preview navigation-popup__route-preview--reject">
-                  <div className="navigation-mini-map" aria-hidden>
-                    <span className="navigation-map-line primary" />
-                    <span className="navigation-map-line secondary" />
-                    <span className="navigation-map-pin start" />
-                    <span className="navigation-map-pin end" />
-                  </div>
-                  <div className="navigation-popup__route-summary navigation-popup__route-summary--reject">
-                    <span className="navigation-popup__route-badge navigation-popup__route-badge--danger">{rejectRouteLabel}</span>
-                    <strong>{rejectRouteTitle}</strong>
-                    <p>{rejectRouteSubline}</p>
-                  </div>
-                </div>
-              </div>
-            ) : isNavigationActive || isVolumeTask ? (
-              <div className="navigation-popup__route-preview navigation-popup__route-preview--final" aria-label="Navigation aktiv">
-                <div className="navigation-mini-map navigation-mini-map--final" aria-hidden>
-                  <span className="navigation-map-line primary" />
-                  <span className="navigation-map-line secondary" />
-                  <span className="navigation-map-pin start" />
-                  <span className="navigation-map-pin end" />
-                </div>
-                <div className="navigation-popup__route-summary">
-                  <span className="navigation-popup__route-badge navigation-popup__route-badge--success">Route aktiv</span>
-                  <strong>Navigation läuft</strong>
-                  <p>Statische Kartenansicht</p>
-                </div>
-              </div>
-            ) : (
-              <div className="navigation-popup__meta" aria-label="Routendetails">
-                {isVoiceNavScenario41 && (isActiveTask || isVolumeTask) ? (
-                  <>
-                    <span className="navigation-popup__speaker" aria-hidden>🔊</span>
-                    <span className="navigation-popup__volume-label">Ansagen</span>
-                    <span className="navigation-popup__volume" aria-label={`Ansagelautstärke ${isVolumeUp ? 55 : 40} Prozent`}>
-                      <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
-                      <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
-                      <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
-                      <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
-                      <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span>12 min</span>
-                    <span>4.2 km</span>
-                    <span>8 min schneller</span>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
 
 
-        {!isClarify && showGestureActions && !isRejectRouteCompleted && (
-          <div className="navigation-popup__actions" aria-label="Navigationsgesten">
-            {isRejectRouteScenario ? (
-              <span className={`navigation-popup__chip navigation-popup__chip--decline ${isRejectRouteDetected ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-                <span aria-hidden>↔</span>Swipe
-              </span>
-            ) : isRouteSelectionScenario ? (
-              <>
-                <span className={`navigation-popup__chip navigation-popup__chip--decline ${isRouteSelectionSwiped ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-                  <span aria-hidden>↔</span>Swipe zum Wechseln
-                </span>
-                <span className={`navigation-popup__chip navigation-popup__chip--accept ${isRouteSelectionConfirmed || isRouteSelectionCompleted ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Zeigen / Tippen", onPreviewGesture)}>
-                  <span aria-hidden>⌾</span>Tippen zum Bestätigen
-                </span>
-              </>
-            ) : (
-              <>
-                {!isRouteBrowseSelectTask && (
-                  <span className={`navigation-popup__chip navigation-popup__chip--accept ${isAccepted ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Daumen hoch", onPreviewGesture)}>
-                    <span aria-hidden>👍</span>Daumen hoch
-                  </span>
-                )}
-                <span className={`navigation-popup__chip navigation-popup__chip--decline ${isDeclined || isBrowsingNextRoute ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-                  <span aria-hidden>↔</span>{isNextRouteTask ? "Nächste Route" : "Swipe"}
-                </span>
-              </>
-            )}
-          </div>
-        )}
-        {!isClarify && showVoiceActions && shouldShowVoiceControls && !isRejectRouteCompleted && (
-          <div className="navigation-popup__actions" aria-label="Navigationsentscheidung">
-            {isRejectRouteScenario ? (
-              <button
-                className={`navigation-popup__button navigation-popup__button--decline ${isRejectRouteDetected && !rejectRouteDetectedBySwipe ? "navigation-popup__button--active" : ""}`}
-                type="button"
-                onClick={onPreviewGesture ? () => onPreviewGesture("Ablehnen") : undefined}
-              >
-                Route ablehnen
-              </button>
-            ) : previewActions ? previewActions.map((action) => (
-              <button
-                key={action.label}
-                className={`navigation-popup__button navigation-popup__button--${action.kind === "decline" ? "decline" : "accept"} ${(action.action === "Annehmen" && isAccepted) || (action.action === "Ablehnen" && isDeclined) || (action.action === "Lauter" && isNavigationActive) ? "navigation-popup__button--active" : ""}`}
-                type="button"
-                onClick={() => onPreviewGesture?.(action.action)}
-              >
-                {action.label}
-              </button>
-            )) : (
-              <>
-                <button className={`navigation-popup__button navigation-popup__button--accept ${isAccepted || isVolumeUp ? "navigation-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture(previewGestureForVoiceTask(payload)) : undefined}>
-                  {voiceActionLabel(payload)}
-                </button>
-                {showVoiceDecline && (
-                  <button className={`navigation-popup__button navigation-popup__button--decline ${isDeclined ? "navigation-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Swipe") : undefined}>
-                    Ablehnen
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
 
-function isNavigationScenario32(payload: WidgetPayload): boolean {
-  return payload.domain === "navigation" && (payload.study_ref === "3.2" || payload.scenario_id === "STUDY-3.2" || payload.task_id === "NAV-NEXT-ROUTE" || payload.task_id === "NAV-SELECT-SECOND");
-}
 
-function navigationScenario32Stage(payload: WidgetPayload): "waiting" | "swiped" | "confirmed" | "completed" {
-  if (!isNavigationScenario32(payload)) {
-    return "waiting";
-  }
 
-  if (payload.event_type === "trial_completed" && payload.decision === "execute") {
-    return "completed";
-  }
 
-  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
-  const normalizedGesture = normalizeGestureLabel(gestureLabel);
-  const expectedGesture = normalizeGestureLabel(payload.expected_gesture);
-  const isSwipe = normalizedGesture === "swipe";
-  const isTap = normalizedGesture === "tap";
-  const isSecondStep = payload.step_index === 1 || payload.task_id === "NAV-SELECT-SECOND" || expectedGesture === "tap";
-  const isConfirmed = isTap || (isSecondStep && payload.decision === "execute") || gestureLabel === "Zeigen / Tippen" || gestureLabel === "Zeigen/Tippen";
 
-  if (isConfirmed) {
-    return "confirmed";
-  }
 
-  if (isSwipe) {
-    return "swiped";
-  }
-
-  return "waiting";
-}
-
-function isNavigationRejectScenario13(payload: WidgetPayload): boolean {
-  return payload.domain === "navigation" && (payload.study_ref === "1.3" || payload.scenario_id === "STUDY-1.3") && payload.task_id === "NAV-REJECT-ROUTE";
-}
-
-function navigationScenario13Stage(payload: WidgetPayload): "waiting" | "detected" | "completed" {
-  if (!isNavigationRejectScenario13(payload)) {
-    return "waiting";
-  }
-
-  if (payload.event_type === "trial_completed" || payload.decision === "cancel") {
-    return "completed";
-  }
-
-  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
-  const normalizedGesture = normalizeGestureLabel(gestureLabel);
-  const voiceText = `${payload.intent ?? ""} ${payload.action ?? ""} ${payload.target ?? ""} ${payload.expected_voice ?? ""} ${payload.prompt ?? ""} ${payload.overlay_body ?? ""}`.toLowerCase();
-  const detectedByGesture = normalizedGesture === "swipe";
-  const detectedByVoice = voiceText.includes("ablehnen") || voiceText.includes("reject");
-
-  if (detectedByGesture || detectedByVoice) {
-    return "detected";
-  }
-
-  return "waiting";
-}
-
-function AudioPopupWidget({ payload, state, onPreviewGesture }: { payload: WidgetPayload; state: CockpitState; onPreviewGesture?: (gesture: PreviewGesture) => void }) {
-  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
-  const normalizedGesture = normalizeGestureLabel(gestureLabel);
-  const isClarify = payload.decision === "clarify";
-  const isWaiting = !isClarify && !payload.decision && !gestureLabel;
-  const clarifyText = payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen.";
-  const isResumeTask = payload.task_id === "AUDIO-RESUME";
-  const isNextTask = payload.task_id === "AUDIO-NEXT";
-  const isLouderTask = payload.task_id === "AUDIO-VOLUME-UP";
-  const isAudioResumeNextScenario = payload.study_ref === "3.3" || payload.scenario_id === "STUDY-3.3";
-  const isAudioSuggestionNextScenario = payload.study_ref === "1.2" || payload.scenario_id === "STUDY-1.2";
-  const isAudioBothScenario = payload.study_ref === "3.3" || payload.scenario_id === "STUDY-3.3";
-  const isTap = normalizedGesture === "tap";
-  const isPlaying = !isClarify && !isNextTask && (gestureLabel === "Daumen hoch" || isTap || payload.decision === "execute");
-  const isSkipped = !isClarify && isNextTask && (gestureLabel === "Swipe" || payload.decision === "execute" || payload.decision === "cancel");
-  const isVolume = !isClarify && (gestureLabel === "Handgelenk drehen" || isLouderTask);
-  const { showVoiceActions, showGestureActions } = popupModalityVisibility(payload);
-  const previewActions = onPreviewGesture ? voicePreviewActions(payload) : null;
-  const volume = Math.max(0, Math.min(100, state.volume));
-  const trackTitle = state.track || "Night Drive";
-  const stageClass = isClarify
-    ? "audio-popup--clarify"
-    : isVolume
-      ? "audio-popup--volume"
-    : isSkipped
-      ? "audio-popup--skipped"
-      : isResumeTask && !isPlaying
-        ? "audio-popup--paused"
-        : isPlaying
-          ? "audio-popup--playing"
-          : "audio-popup--suggested";
-  const body = isClarify
-    ? payload.overlay_body || "Audiowiedergabe"
-    : isVolume && payload.decision === "execute"
-      ? payload.accepted_text || "Lautstärke angepasst"
-    : isVolume
-      ? payload.overlay_body || payload.prompt || "Lautstärke erhöhen."
-    : isSkipped
-      ? payload.accepted_text || "Nächster Song wird abgespielt"
-      : isPlaying
-        ? payload.accepted_text || "Wiedergabe gestartet"
-        : isResumeTask
-          ? payload.overlay_body || payload.prompt || "Song ist pausiert."
-        : payload.overlay_body || payload.prompt || "Night Drive abspielen?";
-  const metaText = isVolume ? `${volume}% Lautstärke` : isResumeTask && !isPlaying ? "Pausiert" : isPlaying ? "Spielt" : isSkipped ? "Nächster Titel" : isNextTask ? "Aktive Wiedergabe" : "Vorgeschlagen";
-
-  return (
-    <div className={`interaction-popup audio-popup-shell ${payload.event_type || ""}`}>
-      <section className={`audio-popup ${stageClass}`}>
-        <div className="audio-popup__header">
-          <div>
-            <span className="eyebrow audio-popup__eyebrow">Audio</span>
-          </div>
-        </div>
-
-        <div className="audio-popup__content">
-          <div className="audio-popup__details">
-            <span className="audio-popup__label">{metaText}</span>
-            <strong className="audio-popup__track">{trackTitle}</strong>
-            <p>{body}</p>
-            <div className={`audio-popup__volume ${isVolume ? "audio-popup__volume--active" : ""}`} aria-label={`Lautstärke ${volume}%`}>
-              <div className="audio-popup__volume-label">
-                <span>Lautstärke</span>
-                <strong>{volume}%</strong>
-              </div>
-              <div className="audio-popup__volume-track">
-                <span style={{ width: `${volume}%` }} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {!isClarify && showGestureActions && (
-          <div className="audio-popup__actions" aria-label="Audiogesten">
-            <span
-              className={`audio-popup__chip audio-popup__chip--accept ${isPlaying ? "audio-popup__chip--active" : ""}`}
-              {...previewChipProps(isAudioBothScenario ? "Zeigen / Tippen" : isResumeTask ? "Zeigen / Tippen" : "Daumen hoch", onPreviewGesture)}
-            >
-              <span aria-hidden>{isAudioBothScenario || isResumeTask ? "⌾" : "👍"}</span>{isAudioBothScenario || isResumeTask ? "Tippen" : "Daumen hoch"}
-            </span>
-            <span className={`audio-popup__chip audio-popup__chip--decline ${isSkipped ? "audio-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-              <span aria-hidden>↔</span>{isNextTask ? "Swipe" : "Swipe"}
-            </span>
-            {!isAudioResumeNextScenario && !isAudioSuggestionNextScenario && (
-              <span className={`audio-popup__chip audio-popup__chip--volume ${isVolume ? "audio-popup__chip--active" : ""}`} {...previewChipProps("Handgelenk drehen", onPreviewGesture)}>
-                <span aria-hidden>↻</span>Drehen
-              </span>
-            )}
-          </div>
-        )}
-        {!isClarify && showVoiceActions && (
-          <div className="audio-popup__actions" aria-label="Audioaktionen">
-            {previewActions ? previewActions.map((action) => (
-              <button
-                key={action.label}
-                className={`audio-popup__button audio-popup__button--accept ${(action.action === "Nächstes Lied" && isSkipped) || (action.action === "Lauter" && isVolume) ? "audio-popup__button--active" : ""}`}
-                type="button"
-                onClick={() => onPreviewGesture?.(action.action)}
-              >
-                {action.label}
-              </button>
-            )) : (
-              <>
-                <button className={`audio-popup__button audio-popup__button--accept ${isPlaying || isSkipped || isVolume ? "audio-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture(previewGestureForVoiceTask(payload)) : undefined}>
-                  {voiceActionLabel(payload)}
-                </button>
-                {payload.condition !== "Voice only" && (
-                  <button className={`audio-popup__button audio-popup__button--decline ${isSkipped ? "audio-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Swipe") : undefined}>
-                    Ablehnen
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function MessagesPopupWidget({ payload, state, onPreviewGesture }: { payload: WidgetPayload; state: CockpitState; onPreviewGesture?: (gesture: PreviewGesture) => void }) {
-  const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
-  const normalizedGesture = normalizeGestureLabel(gestureLabel);
-  const isClarify = payload.decision === "clarify";
-  const isConfirmed = !isClarify && gestureLabel === "Daumen hoch";
-  const isIncomingTask = payload.task_id === "MESSAGE-INCOMING";
-  const isOpenTask = payload.task_id === "MESSAGE-OPEN";
-  const isOpenedTask = payload.task_id === "MESSAGE-OPENED";
-  const isCloseTask = payload.task_id === "MESSAGE-CLOSE";
-  const isClosedTask = payload.task_id === "MESSAGE-CLOSED";
-  const isMessageClosed = !isClarify && isClosedTask;
-  const isCloseInstruction = !isClarify && isCloseTask;
-  const isOpened = !isClarify && !isConfirmed && !isCloseInstruction && !isMessageClosed && (
-    isOpenedTask ||
-    normalizedGesture === "tap"
-  );
-  const isIncoming = !isClarify && !isConfirmed && !isOpened && !isCloseInstruction && !isMessageClosed && (isIncomingTask || isOpenTask || !payload.task_id);
-  const { showVoiceActions, showGestureActions } = popupModalityVisibility(payload);
-  const previewActions = onPreviewGesture ? voicePreviewActions(payload) : null;
-  const showMessageActions = !isMessageClosed && !isOpenedTask;
-  const stageClass = isClarify
-    ? "messages-popup--clarify"
-    : isConfirmed
-      ? "messages-popup--confirmed"
-      : isMessageClosed
-        ? "messages-popup--closed"
-        : isCloseInstruction
-          ? "messages-popup--readable"
-        : isOpened
-          ? "messages-popup--opened"
-          : "messages-popup--new";
-  const body = isClarify
-    ? payload.overlay_body || "Neue Nachricht von Anna."
-    : isConfirmed
-      ? payload.accepted_text || "Bestätigt"
-      : isMessageClosed
-        ? "Inhalt ausgeblendet."
-        : isCloseInstruction
-          ? payload.overlay_body || "Nachricht ist geöffnet und lesbar."
-        : isOpened
-          ? payload.overlay_body || payload.accepted_text || "Nachricht ist geöffnet und lesbar."
-          : payload.overlay_body || payload.prompt || "Neue Nachricht von Anna.";
-  const messageStatus = isMessageClosed
-    ? "Nachricht geschlossen"
-    : isCloseInstruction
-      ? "Nachricht geöffnet"
-      : isOpened
-        ? "Nachricht geöffnet"
-        : isConfirmed
-          ? "Bestätigt"
-          : isIncoming
-            ? "Neue Nachricht"
-            : "Nachricht";
-
-  return (
-    <div className={`interaction-popup messages-popup-shell ${payload.event_type || ""}`}>
-      <section className={`messages-popup ${stageClass}`}>
-        <div className="messages-popup__header">
-          <div>
-            <span className="eyebrow messages-popup__eyebrow">Nachrichten</span>
-          </div>
-        </div>
-
-        <div className="messages-popup__content">
-          <div className={`messages-popup__preview ${isMessageClosed ? "messages-popup__preview--closed" : ""}`}>
-            {isMessageClosed ? (
-              <>
-                <span className="messages-popup__closed-icon" aria-hidden>✓</span>
-                <strong>{messageStatus}</strong>
-                <p className="messages-popup__text">{body}</p>
-              </>
-            ) : (
-              <>
-                <span className="messages-popup__sender">Von: <strong>Anna</strong></span>
-                <strong>{messageStatus}</strong>
-                <p className="messages-popup__text">{body}</p>
-              </>
-            )}
-          </div>
-        </div>
-
-        {!isClarify && showGestureActions && showMessageActions && (
-          <div className="messages-popup__actions" aria-label="Nachrichtengesten">
-            <span className={`messages-popup__chip messages-popup__chip--open ${isOpened ? "messages-popup__chip--active" : ""}`} {...previewChipProps("Zeigen / Tippen", onPreviewGesture)}>
-              <span aria-hidden>⌾</span>Tippen
-            </span>
-            <span className={`messages-popup__chip messages-popup__chip--close ${isCloseInstruction ? "messages-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-              <span aria-hidden>↔</span>Swipe
-            </span>
-            <span className={`messages-popup__chip messages-popup__chip--confirm ${isConfirmed ? "messages-popup__chip--active" : ""}`} {...previewChipProps("Daumen hoch", onPreviewGesture)}>
-              <span aria-hidden>👍</span>Daumen hoch
-            </span>
-          </div>
-        )}
-        {!isClarify && showVoiceActions && showMessageActions && (
-          <div className="messages-popup__actions" aria-label="Nachrichtenaktionen">
-            {previewActions ? previewActions.map((action) => (
-              <button
-                key={action.label}
-                className={`messages-popup__button messages-popup__button--${action.kind === "decline" ? "close" : "open"} ${(action.action === "Nachricht öffnen" && isIncoming) || (action.action === "Schließen" && isCloseInstruction) ? "messages-popup__button--active" : ""}`}
-                type="button"
-                onClick={() => onPreviewGesture?.(action.action)}
-              >
-                {action.label}
-              </button>
-            )) : (
-              <>
-                <button className={`messages-popup__button messages-popup__button--open ${isIncoming || isCloseInstruction ? "messages-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture(previewGestureForVoiceTask(payload)) : undefined}>
-                  {voiceActionLabel(payload)}
-                </button>
-                {payload.condition !== "Voice only" && (
-                  <button className={`messages-popup__button messages-popup__button--close ${isCloseInstruction ? "messages-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Swipe") : undefined}>
-                    Schließen
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
 
 function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: WidgetPayload; state: CockpitState; onPreviewGesture?: (gesture: PreviewGesture) => void }) {
   const gestureLabel = payload.source?.gesture_event?.gesture_label ?? "";
@@ -2399,10 +1451,18 @@ function AmbientPopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
   const isClarify = payload.decision === "clarify";
   const isWaiting = !isClarify && !payload.decision && !gestureLabel;
   const isSwipe = !isClarify && gestureLabel === "Swipe";
+  const isThumbsUp = !isClarify && gestureLabel === "Daumen hoch";
   const isRotate = !isClarify && gestureLabel === "Handgelenk drehen";
   const isCancelled = !isClarify && (payload.success === false || payload.decision === "cancel");
   const isConfirmed = !isClarify && (payload.decision === "execute" || gestureLabel === "Daumen hoch");
+  const isNightModeTask = payload.task_id === "AMBIENT-NIGHTMODE";
+  const isColorTask = payload.task_id === "AMBIENT-COLOR";
+  const isBrighterTask = payload.task_id === "AMBIENT-BRIGHTER";
+  const isScenario42 = payload.study_ref === "4.2" || payload.scenario_id === "STUDY-4.2";
+  const isScenario23 = payload.study_ref === "2.3" || payload.scenario_id === "STUDY-2.3";
   const brightness = Math.max(0, Math.min(100, state.ambientBrightness));
+  const isBrightnessAdjusted = isBrighterTask && (isRotate || payload.decision === "execute" || payload.event_type === "trial_completed");
+  const isColorChanged = isColorTask && (isSwipe || payload.decision === "execute");
   const colorPresets = [
     { id: "violet", label: "Violett", hex: "#a855f7" },
     { id: "blue", label: "Blau", hex: "#3b82f6" },
@@ -2412,18 +1472,88 @@ function AmbientPopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
     { id: "red", label: "Rot", hex: "#ef4444" },
   ] as const;
   const baseColorIndex = state.ambientColor === "Warm" ? 3 : state.ambientColor === "Blau" ? 1 : 0;
-  const activeColorIndex = (baseColorIndex + (isSwipe ? 1 : 0)) % colorPresets.length;
-  const brightnessPosition = isRotate ? Math.min(100, brightness + 18) : brightness;
+  const activeColorIndex = isScenario23 && (isColorChanged || isBrighterTask) ? 4 : (baseColorIndex + (isSwipe ? 1 : 0)) % colorPresets.length;
+  const brightnessPosition = isBrightnessAdjusted ? Math.min(100, brightness + 22) : brightness;
+  const statusLabel = isClarify
+      ? "Klärung"
+    : isCancelled
+      ? "Abgebrochen"
+      : isBrightnessAdjusted
+        ? "Erhöht"
+        : isColorChanged
+          ? "Gewechselt"
+        : isNightModeTask && isConfirmed
+          ? "Angenommen"
+          : isNightModeTask
+            ? "Vorschlag"
+            : isBrighterTask
+              ? "Aktiv"
+              : isConfirmed
+                ? "Erkannt"
+                : "Bereit";
+  const title = isClarify
+    ? "Eingabe prüfen"
+    : isNightModeTask
+      ? isConfirmed
+        ? "Nachtmodus angenommen"
+        : "Nachtmodus aktivieren?"
+      : isBrighterTask
+        ? isBrightnessAdjusted
+          ? isScenario23 ? "Neue Farbe heller" : "Helligkeit erhöht"
+          : isScenario23 ? "Neue Farbe ist aktiv" : "Nachtmodus ist aktiv"
+        : isColorTask
+          ? isColorChanged ? "Farbe gewechselt" : "Farbe wechseln"
+          : payload.overlay_title || "Ambientebeleuchtung";
+  const description = isClarify
+    ? payload.unclear_text || payload.prompt || "Bitte Eingabe wiederholen."
+    : isNightModeTask
+      ? isConfirmed
+        ? payload.accepted_text || "Nachtmodus wird aktiviert."
+        : payload.overlay_body || payload.prompt || "Das System schlaegt Nachtmodus vor."
+      : isBrighterTask
+        ? isBrightnessAdjusted
+          ? payload.accepted_text || "Ambientebeleuchtung ist jetzt heller."
+          : isScenario23
+            ? "Die neue Farbe ist aktiv. Als nächstes kann sie heller gemacht werden."
+            : payload.overlay_body || payload.prompt || "Nachtmodus ist aktiv. Helligkeit kann angepasst werden."
+        : isColorTask
+          ? isColorChanged
+            ? payload.accepted_text || "Neue Farbe ist aktiv."
+            : payload.overlay_body || payload.prompt || "Aktuelle Farbe: Blau."
+        : payload.overlay_body || payload.prompt || "Ambientebeleuchtung ist aktiv.";
+  const sceneLabel = isNightModeTask ? "Nachtmodus" : isColorTask ? "Farbe" : isBrighterTask ? "Ambientebeleuchtung" : "Lichtszene";
+  const sceneValue = isBrightnessAdjusted
+    ? isScenario23 ? `Neue Farbe · ${brightnessPosition}%` : `${brightnessPosition}% Helligkeit`
+    : isNightModeTask
+      ? "Warm gedimmt"
+      : isScenario23 && (isColorChanged || isBrighterTask)
+        ? "Neue Farbe"
+      : state.ambientColor === "Warm"
+        ? "Warm"
+        : state.ambientColor;
   return (
     <div className={`interaction-popup ambient-popup-shell ${payload.event_type || ""}`}>
-      <section className={`ambient-popup-card ${isClarify ? "ambient-popup-card--clarify" : isCancelled ? "ambient-popup-card--cancelled" : isConfirmed ? "ambient-popup-card--confirmed" : isSwipe || isRotate ? "ambient-popup-card--detected" : ""}`}>
+      <section className={`ambient-popup-card ${isClarify ? "ambient-popup-card--clarify" : isCancelled ? "ambient-popup-card--cancelled" : isBrightnessAdjusted ? "ambient-popup-card--brightness-done" : isColorChanged ? "ambient-popup-card--color-done" : isConfirmed ? "ambient-popup-card--confirmed" : isSwipe || isRotate ? "ambient-popup-card--detected" : ""} ${isScenario42 ? "ambient-popup-card--scenario42" : ""} ${isScenario23 ? "ambient-popup-card--scenario23" : ""} ${isNightModeTask ? "ambient-popup-card--nightmode" : ""} ${isBrighterTask ? "ambient-popup-card--brighter" : ""}`}>
         <div className="ambient-popup-header">
           <div>
             <span className="eyebrow ambient-popup-eyebrow">Ambientebeleuchtung</span>
+            <strong className="ambient-popup-title">{title}</strong>
           </div>
+          <span className="ambient-popup-status">{statusLabel}</span>
         </div>
 
         <div className="ambient-popup-content">
+          <div className="ambient-popup-scene" aria-label={`${sceneLabel}: ${sceneValue}`}>
+            <div className="ambient-popup-light-preview" aria-hidden>
+              <span />
+            </div>
+            <div>
+              <span>{sceneLabel}</span>
+              <strong>{sceneValue}</strong>
+              <p>{description}</p>
+            </div>
+          </div>
+
           <div className="ambient-popup-controls">
             <div className="ambient-popup-slider-row" aria-label={`Farbe ${state.ambientColor}`}>
               <span>Farbe</span>
@@ -2454,8 +1584,23 @@ function AmbientPopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
           <div className="ambient-popup-gesture-row" aria-label="Interaktionen">
             {showGestureActions && (
               <>
-                <span className={`ambient-popup-chip ${isSwipe ? "gesture-chip--detected" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}><span aria-hidden>↔</span>Swipe</span>
-                <span className={`ambient-popup-chip ${isRotate ? "gesture-chip--detected" : ""}`} {...previewChipProps("Handgelenk drehen", onPreviewGesture)}><span aria-hidden>↻</span>Drehen</span>
+                {isNightModeTask && (
+                  <span className={`ambient-popup-chip ${isThumbsUp || isConfirmed ? "gesture-chip--detected" : ""}`} {...previewChipProps("Daumen hoch", onPreviewGesture)}><span aria-hidden>👍</span>Annehmen</span>
+                )}
+                {isColorTask && (
+                  <>
+                    {showVoiceActions && (
+                      <span className={`ambient-popup-chip ${isColorChanged && !isSwipe ? "gesture-chip--detected" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}><span aria-hidden>↔</span>Farbe wechseln</span>
+                    )}
+                    <span className={`ambient-popup-chip ${isSwipe ? "gesture-chip--detected" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}><span aria-hidden>↔</span>Swipe</span>
+                  </>
+                )}
+                {!isNightModeTask && !isBrighterTask && !isColorTask && (
+                  <span className={`ambient-popup-chip ${isSwipe ? "gesture-chip--detected" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}><span aria-hidden>↔</span>Swipe</span>
+                )}
+                {!isNightModeTask && (
+                  <span className={`ambient-popup-chip ${isRotate ? "gesture-chip--detected" : ""}`} {...previewChipProps("Handgelenk drehen", onPreviewGesture)}><span aria-hidden>↻</span>{isBrighterTask ? "Heller machen" : "Drehen"}</span>
+                )}
               </>
             )}
           </div>
@@ -2523,6 +1668,19 @@ function applyPayload(current: CockpitState, payload: WidgetPayload): CockpitSta
     : current;
 
   if (payload.event_type === "trial_completed") {
+    if (
+      (payload.study_ref === "2.1" || payload.scenario_id === "STUDY-2.1") &&
+      payload.task_id === "AUDIO-NEXT"
+    ) {
+      return {
+        ...updated,
+        activePayload: payload,
+        completed: false,
+        decision,
+        feedback: "Nächstes Lied spielt. Warte auf Lautstärke-Befehl.",
+      };
+    }
+
     return {
       ...updated,
       activePayload: payload,

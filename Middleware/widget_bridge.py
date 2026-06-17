@@ -92,6 +92,10 @@ def decision_for_step(task_id: str | None, decision: str, intent_result: dict[st
         if intent in {"end_call", "reject_call"} or action in {"close", "reject", "cancel"}:
             return "execute"
 
+    if task_id == "CALL-VOLUME" and target in {"call", "volume"}:
+        if intent in {"adjust_volume"} or action in {"increase", "decrease", "set"}:
+            return "execute"
+
     if task_id == "CALL-ENDED":
         return "execute"
     return normalized

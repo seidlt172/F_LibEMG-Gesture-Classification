@@ -347,7 +347,7 @@ SCENARIOS: tuple[StudyScenario, ...] = (
     scenario(
         "3.1",
         "Voice only",
-        4,
+        3,
         "Nachricht öffnen und schließen",
         (
             step(
@@ -361,16 +361,6 @@ SCENARIOS: tuple[StudyScenario, ...] = (
                 unclear_text="Soll die Nachricht geöffnet werden?",
             ),
             step(
-                "MESSAGE-OPENED",
-                prompt="Nachricht wurde geöffnet.",
-                overlay_title="Nachricht von Anna",
-                overlay_body="Hey, wie lange brauchst du noch?",
-                modality="voice",
-                voice_input="",
-                accepted_text="",
-                unclear_text="",
-            ),
-            step(
                 "MESSAGE-CLOSE",
                 prompt="Nachricht ist geöffnet.",
                 overlay_title="Nachricht",
@@ -379,16 +369,6 @@ SCENARIOS: tuple[StudyScenario, ...] = (
                 voice_input="Schließen",
                 accepted_text="Nachricht geschlossen.",
                 unclear_text="Soll die Nachricht geschlossen werden?",
-            ),
-            step(
-                "MESSAGE-CLOSED",
-                prompt="Nachricht wurde geschlossen.",
-                overlay_title="Nachricht",
-                overlay_body="Nachricht geschlossen.",
-                modality="voice",
-                voice_input="",
-                accepted_text="",
-                unclear_text="",
             ),
         ),
     ),
