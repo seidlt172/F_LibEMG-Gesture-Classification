@@ -121,7 +121,7 @@ export function NavigationWidget({ payload, state, onPreviewGesture }: { payload
     : isRouteSelectionSwiped
       ? "Route 2 ausgewählt."
     : isRouteSelectionWaiting
-      ? "Wähle zwischen Route 1 und Route 2."
+      ? "Route 1 oder Route 2?"
     : isVolumeUp
       ? "Route ist aktiv."
     : isNavigationActive

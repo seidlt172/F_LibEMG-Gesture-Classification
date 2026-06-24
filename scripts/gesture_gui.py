@@ -1960,7 +1960,7 @@ class GestureGUI:
                 trial_id=study_context.get("trial_id"),
                 used_modalities=intent_inputs.get("used_modalities"),
                 event_type="step_update",
-                decision_override=step_decision,
+                decision_override="",
             )
         self.last_widget_payload = widget_payload
         self._record_study_event(

@@ -354,7 +354,7 @@ SCENARIOS: tuple[StudyScenario, ...] = (
                 "MESSAGE-OPEN",
                 prompt="Nachricht kommt rein.",
                 overlay_title="Neue Nachricht",
-                overlay_body="Mia: Bin in 5 Minuten da.",
+                overlay_body="Bin in 5 Minuten da.",
                 modality="voice",
                 voice_input="Nachricht öffnen",
                 accepted_text="Nachricht geöffnet.",

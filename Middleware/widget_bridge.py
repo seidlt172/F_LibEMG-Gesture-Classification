@@ -53,6 +53,8 @@ class WidgetBridgeResult:
 
 def coerce_decision(value: str | None) -> str:
     normalized = (value or "").strip().lower()
+    if not normalized:
+        return ""
     if normalized in DECISIONS:
         return normalized
     if normalized in DECISION_BY_LEGACY_STATUS:
@@ -61,7 +63,7 @@ def coerce_decision(value: str | None) -> str:
 
 
 def legacy_status_from_decision(decision: str | None) -> str:
-    return LEGACY_STATUS_BY_DECISION[coerce_decision(decision)]
+    return LEGACY_STATUS_BY_DECISION.get(coerce_decision(decision), "")
 
 
 def decision_from_intent_result(result: dict[str, Any]) -> str:
@@ -132,7 +134,7 @@ def build_widget_payload(
     event_type: str = "step_update",
     decision_override: str | None = None,
 ) -> dict[str, Any]:
-    decision = coerce_decision(decision_override) if decision_override else decision_from_intent_result(intent_result)
+    decision = coerce_decision(decision_override) if decision_override is not None else decision_from_intent_result(intent_result)
     scenario_id = study_context.get("scenario_id", "")
     study_ref = (
         study_context.get("study_ref")

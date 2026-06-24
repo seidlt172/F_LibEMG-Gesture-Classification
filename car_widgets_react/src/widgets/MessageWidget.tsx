@@ -81,6 +81,13 @@ export function MessageWidget({ payload, state, onPreviewGesture }: { payload: W
                 <strong>{messageStatus}</strong>
                 <p className="messages-popup__text">{body}</p>
               </>
+            ) : isIncoming ? (
+              <div className="messages-popup__sender-row">
+                <div className="messages-popup__avatar" aria-hidden>A</div>
+                <div className="messages-popup__sender-info">
+                  <strong>Neue Nachricht von Anna</strong>
+                </div>
+              </div>
             ) : (
               <>
                 <span className="messages-popup__sender">Von: <strong>Anna</strong></span>

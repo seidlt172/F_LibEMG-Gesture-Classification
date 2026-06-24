@@ -1848,9 +1848,9 @@ small {
 
 .navigation-popup__route-card-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .navigation-popup__route-name {
@@ -2618,11 +2618,34 @@ small {
 .messages-popup__sender {
   color: #99a1af;
   font-size: 12px;
-  font-weight: 700;
 }
 
 .messages-popup__sender strong {
   color: #ffffff;
+}
+
+.messages-popup__sender-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.messages-popup__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #7c3aed;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.messages-popup__sender-info strong {
+  color: #ffffff;
+  font-size: 16px;
 }
 
 .messages-popup__preview > strong {

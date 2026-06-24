@@ -1540,7 +1540,7 @@ function AmbientPopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
         : payload.overlay_body || payload.prompt || "Ambientebeleuchtung ist aktiv.";
   const sceneLabel = isNightModeTask ? "Nachtmodus" : isColorTask ? "Farbe" : isBrighterTask ? "Ambientebeleuchtung" : "Lichtszene";
   const sceneValue = isBrightnessAdjusted
-    ? isScenario23 ? `Neue Farbe · ${brightnessPosition}%` : `${brightnessPosition}% Helligkeit`
+    ? isScenario23 ? "Neue Farbe" : state.ambientColor
     : isNightModeTask
       ? "Warm gedimmt"
       : isScenario23 && (isColorChanged || isBrighterTask)
@@ -1587,7 +1587,7 @@ function AmbientPopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
               </div>
             </div>
 
-            <div className="ambient-popup-slider-row" aria-label={`Helligkeit ${brightnessPosition}%`}>
+            <div className="ambient-popup-slider-row" aria-label="Helligkeit">
               <span>Helligkeit</span>
               <div className="ambient-popup-slider brightness">
                 <span className="ambient-popup-slider-fill" style={{ width: `${brightnessPosition}%` }} />
@@ -1597,31 +1597,7 @@ function AmbientPopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
           </div>
         </div>
 
-        {!isClarify && (showVoiceActions || showGestureActions) && (
-          <div className="ambient-popup-gesture-row" aria-label="Interaktionen">
-            {showGestureActions && (
-              <>
-                {isNightModeTask && (
-                  <span className={`ambient-popup-chip ${isThumbsUp || isConfirmed ? "gesture-chip--detected" : ""}`} {...previewChipProps("Daumen hoch", onPreviewGesture)}><span aria-hidden>👍</span>Annehmen</span>
-                )}
-                {isColorTask && (
-                  <>
-                    {showVoiceActions && (
-                      <span className={`ambient-popup-chip ${isColorChanged && !isSwipe ? "gesture-chip--detected" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}><span aria-hidden>↔</span>Farbe wechseln</span>
-                    )}
-                    <span className={`ambient-popup-chip ${isSwipe ? "gesture-chip--detected" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}><span aria-hidden>↔</span>Swipe</span>
-                  </>
-                )}
-                {!isNightModeTask && !isBrighterTask && !isColorTask && (
-                  <span className={`ambient-popup-chip ${isSwipe ? "gesture-chip--detected" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}><span aria-hidden>↔</span>Swipe</span>
-                )}
-                {!isNightModeTask && (
-                  <span className={`ambient-popup-chip ${isRotate ? "gesture-chip--detected" : ""}`} {...previewChipProps("Handgelenk drehen", onPreviewGesture)}><span aria-hidden>↻</span>{isBrighterTask ? "Heller machen" : "Drehen"}</span>
-                )}
-              </>
-            )}
-          </div>
-        )}
+
       </section>
     </div>
   );
