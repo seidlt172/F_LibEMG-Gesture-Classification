@@ -36,87 +36,6 @@ export function AudioWidget({ payload, state, onPreviewGesture }: { payload: Wid
   const isScenario21VolumeFinal = isScenario21 && isLouderTask && payload.event_type === "trial_completed";
   const isScenario21VolumeWaiting = isScenario21 && isLouderTask && !isScenario21VolumeFinal;
 
-  if (isScenario21) {
-    const scenario21Track = isNextTask && !isScenario21NextSongPlaying ? "Low Beam" : "City Lights";
-    const scenario21Volume = isScenario21VolumeFinal ? 62 : 42;
-    const scenario21StageClass = isClarify
-      ? "audio-popup--clarify"
-      : isScenario21VolumeFinal
-        ? "audio-popup--volume audio-popup--success"
-        : isScenario21VolumeWaiting
-          ? "audio-popup--volume"
-          : isScenario21NextSongPlaying
-            ? "audio-popup--playing"
-            : "audio-popup--suggested";
-    const scenario21Meta = isClarify
-      ? "Nicht erkannt"
-      : isScenario21VolumeFinal
-        ? "Lautstärke erhöht"
-        : isScenario21VolumeWaiting
-          ? "Bereit für Sprachbefehl"
-          : isScenario21NextSongPlaying
-            ? "Nächstes Lied spielt"
-            : "Aktive Wiedergabe";
-    const scenario21Body = isClarify
-      ? payload.overlay_body || "Audiowiedergabe"
-      : isScenario21VolumeFinal
-        ? "Lautstärke erhöht."
-        : isScenario21VolumeWaiting
-          ? "City Lights wird abgespielt."
-          : isScenario21NextSongPlaying
-            ? "City Lights wird abgespielt."
-            : "Low Beam wird abgespielt.";
-    const scenario21ActionLabel = isScenario21NextSongPlaying || isScenario21VolumeWaiting ? "Lauter" : "Nächstes Lied";
-    const scenario21Action = isScenario21NextSongPlaying || isScenario21VolumeWaiting ? "Lauter" : "Nächstes Lied";
-
-    return (
-      <div className={`interaction-popup audio-popup-shell ${payload.event_type || ""}`}>
-        <section className={`audio-popup ${scenario21StageClass}`}>
-          <div className="audio-popup__header">
-            <div>
-              <span className="eyebrow audio-popup__eyebrow">Audio</span>
-            </div>
-          </div>
-
-          <div className="audio-popup__content">
-            <div className="audio-popup__details">
-              <span className="audio-popup__label">{scenario21Meta}</span>
-              <strong className="audio-popup__track">{scenario21Track}</strong>
-              <p>{scenario21Body}</p>
-              <div className={`audio-popup__volume ${isScenario21VolumeWaiting || isScenario21VolumeFinal ? "audio-popup__volume--active" : ""}`} aria-label={`Lautstärke ${scenario21Volume}%`}>
-                <div className="audio-popup__volume-label">
-                  <span>Lautstärke</span>
-                  <strong>{scenario21Volume}%</strong>
-                </div>
-                <div className="audio-popup__volume-track">
-                  <span style={{ width: `${scenario21Volume}%` }} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <PopupProcessNotice
-            isWaiting={!isClarify && !payload.decision && !gestureLabel}
-            isClarify={isClarify}
-            waitingText={waitingTextFor(payload)}
-            clarifyText={clarifyText}
-          />
-
-          {!isClarify && !isScenario21VolumeFinal && showVoiceActions && (
-            <div className="audio-popup__actions" aria-label="Audioaktionen">
-              <button
-                className={`audio-popup__button audio-popup__button--accept ${isScenario21NextSongPlaying || isScenario21VolumeWaiting ? "" : ""}`}
-                type="button"
-                onClick={onPreviewGesture ? () => onPreviewGesture(scenario21Action) : undefined}
-              >
-                {scenario21ActionLabel}
-              </button>
-            </div>
-          )}
-        </section>
-      </div>
-    );
-  }
 
   if (isAudioResumeNextScenario) {
     const resumeDetected = isResumeTask && (isTap || payload.decision === "execute");
@@ -259,73 +178,46 @@ export function AudioWidget({ payload, state, onPreviewGesture }: { payload: Wid
 
   return (
     <div className={`interaction-popup audio-popup-shell ${payload.event_type || ""}`}>
-      <section className={`audio-popup ${stageClass}`}>
-        <div className="audio-popup__header">
-          <div>
-            <span className="eyebrow audio-popup__eyebrow">Audio</span>
-          </div>
-        </div>
-
-        <div className="audio-popup__content">
-          <div className="audio-popup__details">
-            <span className="audio-popup__label">{metaText}</span>
-            <strong className="audio-popup__track">{trackTitle}</strong>
-            <p>{body}</p>
-            <div className={`audio-popup__volume ${isVolume ? "audio-popup__volume--active" : ""}`} aria-label={`Lautstärke ${volume}%`}>
-              <div className="audio-popup__volume-label">
-                <span>Lautstärke</span>
-                <strong>{volume}%</strong>
+      <section className={`audio-popup ${stageClass} music-widget`} style={{ height: 'auto', padding: 0 }}>
+        <div className="music-widget-frame" style={{ height: 'auto' }}>
+          <div className="music-widget-main">
+            <div className="side-widget-header">
+              <span className="eyebrow music-widget-title">Audio</span>
+              <span className="side-widget-badge voice">{metaText}</span>
+            </div>
+            <div className="music-widget-track">
+              <div className="music-album-art" aria-hidden>
+                <span>{trackTitle.substring(0, 2).toUpperCase()}</span>
               </div>
-              <div className="audio-popup__volume-track">
-                <span style={{ width: `${volume}%` }} />
+              <div className="music-track-copy">
+                <strong className="widget-title music-track-title">{trackTitle}</strong>
+                <span className="music-track-meta">{body}</span>
               </div>
             </div>
           </div>
-        </div>
 
-        {!isClarify && showGestureActions && (
-          <div className="audio-popup__actions" aria-label="Audiogesten">
-            <span
-              className={`audio-popup__chip audio-popup__chip--accept ${isPlaying ? "audio-popup__chip--active" : ""}`}
-              {...previewChipProps(isAudioBothScenario ? "Zeigen / Tippen" : isResumeTask ? "Zeigen / Tippen" : "Daumen hoch", onPreviewGesture)}
-            >
-              <span aria-hidden>{isAudioBothScenario || isResumeTask ? "⌾" : "👍"}</span>{isAudioBothScenario || isResumeTask ? "Tippen" : "Daumen hoch"}
-            </span>
-            <span className={`audio-popup__chip audio-popup__chip--decline ${isSkipped ? "audio-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-              <span aria-hidden>↔</span>{isNextTask ? "Swipe" : "Swipe"}
-            </span>
-            {!isAudioResumeNextScenario && !isAudioSuggestionNextScenario && (
-              <span className={`audio-popup__chip audio-popup__chip--volume ${isVolume ? "audio-popup__chip--active" : ""}`} {...previewChipProps("Handgelenk drehen", onPreviewGesture)}>
-                <span aria-hidden>↻</span>Drehen
-              </span>
-            )}
-          </div>
-        )}
-        {!isClarify && showVoiceActions && (
-          <div className="audio-popup__actions" aria-label="Audioaktionen">
-            {previewActions ? previewActions.map((action) => (
-              <button
-                key={action.label}
-                className={`audio-popup__button audio-popup__button--accept ${(action.action === "Nächstes Lied" && isSkipped) || (action.action === "Lauter" && isVolume) ? "audio-popup__button--active" : ""}`}
-                type="button"
-                onClick={() => onPreviewGesture?.(action.action)}
-              >
-                {action.label}
+          <div className="music-widget-controls">
+            <div className="music-volume-row" aria-label={`Lautstärke ${volume}%`}>
+              <div className="music-volume-track">
+                <span className="music-volume-fill" style={{ width: `${volume}%` }} />
+              </div>
+              <span className="music-volume-value">{volume}%</span>
+            </div>
+
+            <div className="music-control-row" aria-label="Musiksteuerung">
+              <button className="music-control-button" type="button" aria-label="Vorheriger Titel">
+                <span aria-hidden>{"<"}</span>
               </button>
-            )) : (
-              <>
-                <button className={`audio-popup__button audio-popup__button--accept ${isPlaying || isSkipped || isVolume ? "audio-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture(previewGestureForVoiceTask(payload)) : undefined}>
-                  {voiceActionLabel(payload)}
-                </button>
-                {payload.condition !== "Voice only" && (
-                  <button className={`audio-popup__button audio-popup__button--decline ${isSkipped ? "audio-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Swipe") : undefined}>
-                    Ablehnen
-                  </button>
-                )}
-              </>
-            )}
+              <button className="music-control-button play" type="button" aria-label="Abspielen">
+                <span aria-hidden>{isPlaying ? "||" : "▶"}</span>
+              </button>
+              <button className={`music-control-button ${isSkipped ? 'active' : ''}`} type="button" aria-label="Nächster Titel">
+                <span aria-hidden>{">"}</span>
+              </button>
+            </div>
+
           </div>
-        )}
+        </div>
       </section>
     </div>
   );

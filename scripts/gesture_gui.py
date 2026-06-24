@@ -452,7 +452,7 @@ class GestureGUI:
         self.finish_trial_button = self._make_button(
             trial_buttons,
             "Erfolgreich beenden",
-            lambda: self._finish_trial(True),
+            self._force_final_step_and_finish,
         )
         self.finish_trial_button.pack(side="left", padx=6)
         self.abort_trial_button = self._make_button(
@@ -2004,11 +2004,11 @@ class GestureGUI:
                     return
                 self._finish_trial(True, finalized_by_operator=False)
 
-            threading.Timer(0.35, finalize_call_trial).start()
+            threading.Timer(1.5, finalize_call_trial).start()
         if (
             self._is_audio_flow_2_1()
-            and widget_payload["event_type"] == "step_update"
-            and widget_payload.get("task_id") == "AUDIO-VOLUME-UP"
+            and current_step.task_id == "AUDIO-VOLUME-UP"
+            and step_decision in {"execute", "cancel"}
         ):
             if self.current_trial:
                 self.current_trial["flow_completed"] = True
@@ -2018,7 +2018,7 @@ class GestureGUI:
                     return
                 self._finish_trial(True, finalized_by_operator=False)
 
-            threading.Timer(0.45, finalize_audio_trial).start()
+            threading.Timer(1.5, finalize_audio_trial).start()
         if (
             self._is_message_flow_3_1()
             and current_step.task_id == "MESSAGE-CLOSE"
@@ -2084,7 +2084,7 @@ class GestureGUI:
                 
                 threading.Timer(1.0, finalize_after_closed).start()
 
-            threading.Timer(0.35, emit_closed_then_finalize).start()
+            threading.Timer(1.5, emit_closed_then_finalize).start()
         if (
             self._is_navigation_flow_4_1()
             and widget_payload["event_type"] == "step_update"
@@ -2256,6 +2256,39 @@ class GestureGUI:
             payload["rejected_text"] = prompt
         return payload
 
+
+    def _force_final_step_and_finish(self):
+        if not self.current_trial:
+            return
+        
+        scenario = self._current_widget_scenario()
+        if not scenario or not scenario.flow_steps:
+            self._finish_trial(True)
+            return
+            
+        final_index = len(scenario.flow_steps) - 1
+        current_index = int(self.current_trial.get("current_step_index", 0))
+        
+        if current_index < final_index:
+            self.current_trial["current_step_index"] = final_index
+            step = scenario.flow_steps[final_index]
+            self.trial_step_label.config(text=f"{step.task_id} ({final_index + 1}/{len(scenario.flow_steps)})")
+            
+            # Send step update to UI
+            intent_result = self.last_intent_result or {}
+            payload = self._build_widget_payload(
+                intent_result=intent_result,
+                event_type="step_update",
+                decision_override="execute"
+            )
+            self.last_widget_payload = payload
+            import threading
+            threading.Thread(target=self._send_widget_payload, args=(payload,), daemon=True).start()
+            
+            self._finish_trial(True)
+        else:
+            self._finish_trial(True)
+
     def _finish_trial(self, success, *, finalized_by_operator=True):
         if not self.current_trial:
             self.trial_status_label.config(text="Kein aktiver Trial.", fg=TEXT_PRI)
@@ -2358,6 +2391,13 @@ class GestureGUI:
             args=(final_widget_payload,),
             daemon=True,
         ).start()
+        
+        # Send clear payload after 1.5s so animation can play
+        threading.Timer(
+            1.5,
+            lambda: self._send_widget_payload({"event_type": "clear"})
+        ).start()
+        
         self.current_trial = None
         self.current_trial_events = []
         self.scenario_menu.config(state=tk.NORMAL)

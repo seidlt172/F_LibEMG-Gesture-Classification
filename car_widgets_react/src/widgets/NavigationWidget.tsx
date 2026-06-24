@@ -254,61 +254,43 @@ export function NavigationWidget({ payload, state, onPreviewGesture }: { payload
                 </div>
               </div>
             ) : (
-              <div className="navigation-popup__meta" aria-label="Routendetails">
-                {isVoiceNavScenario41 && (isActiveTask || isVolumeTask) ? (
-                  <>
-                    <span className="navigation-popup__speaker" aria-hidden>🔊</span>
-                    <span className="navigation-popup__volume-label">Ansagen</span>
-                    <span className="navigation-popup__volume" aria-label={`Ansagelautstärke ${isVolumeUp ? 55 : 40} Prozent`}>
-                      <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
-                      <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
-                      <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
-                      <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
-                      <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span>12 min</span>
-                    <span>4.2 km</span>
-                    <span>8 min schneller</span>
-                  </>
-                )}
+              <div className="navigation-popup__standard-view" aria-label="Routendetails">
+                <div className="navigation-popup__route-preview navigation-popup__route-preview--suggest">
+                  <div className="navigation-mini-map" aria-hidden>
+                    <span className="navigation-map-line primary" />
+                    <span className="navigation-map-line secondary" />
+                    <span className="navigation-map-pin start" />
+                    <span className="navigation-map-pin end" />
+                  </div>
+                </div>
+                <div className="navigation-popup__meta">
+                  {isVoiceNavScenario41 && (isActiveTask || isVolumeTask) ? (
+                    <>
+                      <span className="navigation-popup__speaker" aria-hidden>🔊</span>
+                      <span className="navigation-popup__volume-label">Ansagen</span>
+                      <span className="navigation-popup__volume" aria-label={`Ansagelautstärke ${isVolumeUp ? 55 : 40} Prozent`}>
+                        <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
+                        <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
+                        <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
+                        <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
+                        <span className={`navigation-popup__volume-bar ${isVolumeUp ? "on" : ""}`} />
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span>12 min</span>
+                      <span>4.2 km</span>
+                      <span>8 min schneller</span>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
 
 
-        {!isClarify && showGestureActions && !isRejectRouteCompleted && (
-          <div className="navigation-popup__actions" aria-label="Navigationsgesten">
-            {isRejectRouteScenario ? (
-              <span className={`navigation-popup__chip navigation-popup__chip--decline ${isRejectRouteDetected ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-                <span aria-hidden>↔</span>Swipe
-              </span>
-            ) : isRouteSelectionScenario ? (
-              <>
-                <span className={`navigation-popup__chip navigation-popup__chip--decline ${isRouteSelectionSwiped ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-                  <span aria-hidden>↔</span>Swipe zum Wechseln
-                </span>
-                <span className={`navigation-popup__chip navigation-popup__chip--accept ${isRouteSelectionConfirmed || isRouteSelectionCompleted ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Zeigen / Tippen", onPreviewGesture)}>
-                  <span aria-hidden>⌾</span>Tippen zum Bestätigen
-                </span>
-              </>
-            ) : (
-              <>
-                {!isRouteBrowseSelectTask && (
-                  <span className={`navigation-popup__chip navigation-popup__chip--accept ${isAccepted ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Daumen hoch", onPreviewGesture)}>
-                    <span aria-hidden>👍</span>Daumen hoch
-                  </span>
-                )}
-                <span className={`navigation-popup__chip navigation-popup__chip--decline ${isDeclined || isBrowsingNextRoute ? "navigation-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-                  <span aria-hidden>↔</span>{isNextRouteTask ? "Nächste Route" : "Swipe"}
-                </span>
-              </>
-            )}
-          </div>
-        )}
+
         {!isClarify && showVoiceActions && shouldShowVoiceControls && !isRejectRouteCompleted && (
           <div className="navigation-popup__actions" aria-label="Navigationsentscheidung">
             {isRejectRouteScenario ? (

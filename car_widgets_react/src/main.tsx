@@ -91,8 +91,8 @@ function App() {
     [previewBasePayload, previewGesture],
   );
   const previewModeActive = previewScenario !== "off";
-  const isTerminalLivePayload = livePayload?.event_type === "trial_completed" && livePayload.success === false;
-  const visibleLivePayload = isTerminalLivePayload ? null : livePayload;
+  const isTerminalLivePayload = livePayload?.event_type === "trial_completed";
+  const visibleLivePayload = livePayload;
   const displayPayload = previewModeActive ? previewPayload : visibleLivePayload;
   const displayState = useMemo(() => createPreviewState(state, previewScenario, previewPayload), [state, previewScenario, previewPayload]);
   const shouldShowPopup = Boolean(
@@ -112,23 +112,10 @@ function App() {
     ? `${(displayPayload.step_index ?? 0) + 1}/${displayPayload.step_count}`
     : "";
 
+  const isClarify = displayPayload?.decision === "clarify";
+
   return (
     <main className="shell cockpit-shell">
-      <header className="topbar">
-        <div>
-          <h1>Driver Cockpit</h1>
-          <p className="bridge-status">{bridgeStatus}</p>
-        </div>
-        <div className="topbar-tools">
-          <PreviewScenarioControl
-            value={previewScenario}
-            onChange={setPreviewScenario}
-            displayLabel={previewControlLabel}
-          />
-          <ModeBadge condition={displayPayload?.condition} />
-        </div>
-      </header>
-
       <div className="core">
         <MapPanel
           taskInfoOpen={taskInfoOpen}
@@ -142,17 +129,82 @@ function App() {
           />
         </MapPanel>
 
-        <aside className="sidebar">
-          <SideWidgets />
-        </aside>
-      </div>
+        <div className="map-overlays">
+          {shouldShowPopup && !isClarify && isNavigationDomain(displayPayload?.domain) && (
+            <div className="centered-modal-container navigation-overlay-container">
+              <InteractionPopup
+                payload={displayPayload}
+                state={displayState}
+                onPreviewGesture={previewModeActive ? handlePreviewGesture : undefined}
+              />
+            </div>
+          )}
 
-      {shouldShowPopup && (
-        <InteractionPopup
-          payload={displayPayload}
-          state={displayState}
-          onPreviewGesture={previewModeActive ? handlePreviewGesture : undefined}
-        />
+          {shouldShowPopup && !isClarify && isCallDomain(displayPayload?.domain) && (
+            <div className="centered-modal-container">
+              <InteractionPopup
+                payload={displayPayload}
+                state={displayState}
+                onPreviewGesture={previewModeActive ? handlePreviewGesture : undefined}
+              />
+            </div>
+          )}
+
+          {shouldShowPopup && !isClarify && isAudioDomain(displayPayload?.domain) && (
+            <div className="centered-modal-container">
+              <InteractionPopup
+                payload={displayPayload}
+                state={displayState}
+                onPreviewGesture={previewModeActive ? handlePreviewGesture : undefined}
+              />
+            </div>
+          )}
+
+          {shouldShowPopup && !isClarify && isMessagesDomain(displayPayload?.domain) && (
+            <div className="centered-modal-container">
+              <InteractionPopup
+                payload={displayPayload}
+                state={displayState}
+                onPreviewGesture={previewModeActive ? handlePreviewGesture : undefined}
+              />
+            </div>
+          )}
+          
+          {shouldShowPopup && !isClarify && (isClimateDomain(displayPayload?.domain) || displayPayload?.domain === "ambient_light") && (
+            <div className="bottom-attached-container">
+              <InteractionPopup
+                payload={displayPayload}
+                state={displayState}
+                onPreviewGesture={previewModeActive ? handlePreviewGesture : undefined}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <footer className="bottom-bar">
+        <div className="bottom-bar-left">
+          <span className="climate-icon">♨</span>
+          <strong>22°</strong>
+        </div>
+        <div className="bottom-bar-center">
+          <span className="brightness-icon">☀</span>
+        </div>
+        <div className="bottom-bar-right">
+          <div className="topbar-tools" style={{display: 'flex'}}>
+            <PreviewScenarioControl
+              value={previewScenario}
+              onChange={setPreviewScenario}
+              displayLabel={previewControlLabel}
+            />
+            <ModeBadge condition={displayPayload?.condition} />
+          </div>
+          <span className="grid-icon">⊞</span>
+        </div>
+      </footer>
+
+      {isClarify && (
+        <SiriClarificationWidget payload={displayPayload} />
       )}
 
       <FeedbackBadge decision={displayState.decision} feedback={displayState.feedback} />
@@ -1809,3 +1861,18 @@ function applyDecision(state: CockpitState, decision: Decision, taskId?: string)
 }
 
 createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+
+function SiriClarificationWidget({ payload }: { payload: WidgetPayload | null }) {
+  if (!payload) return null;
+  // Ensure no gesture hints are present
+  let text = payload.unclear_text || payload.prompt || "Was genau meinst du?";
+  // Filter common gesture hints just in case
+  text = text.replace(/Bitte .* machen./g, "").trim();
+  
+  return (
+    <div className="siri-clarification-overlay">
+      <div className="siri-orb"></div>
+      <p className="siri-text">{text}</p>
+    </div>
+  );
+}

@@ -35,6 +35,10 @@ EXECUTE_ACTIONS = {
     "skip",
     "resume",
     "set",
+    "play",
+    "pause",
+    "next",
+    "previous",
 }
 CANCEL_ACTIONS = {"reject", "cancel"}
 WIDGET_EVENT_TYPES = ("scenario_start", "step_update", "trial_completed")
@@ -94,6 +98,18 @@ def decision_for_step(task_id: str | None, decision: str, intent_result: dict[st
 
     if task_id == "CALL-VOLUME" and target in {"call", "volume"}:
         if intent in {"adjust_volume"} or action in {"increase", "decrease", "set"}:
+            return "execute"
+
+    if task_id in {"AUDIO-SUGGESTION", "AUDIO-RESUME"} and target == "audio":
+        if intent in {"play_audio"} or action in {"play", "resume", "accept"}:
+            return "execute"
+
+    if task_id == "AUDIO-NEXT" and target == "audio":
+        if intent in {"next_track"} or action in {"next", "skip"}:
+            return "execute"
+
+    if task_id == "AUDIO-VOLUME-UP" and target in {"audio", "volume"}:
+        if intent in {"adjust_volume"} or action in {"increase", "set"}:
             return "execute"
 
     if task_id == "CALL-ENDED":
