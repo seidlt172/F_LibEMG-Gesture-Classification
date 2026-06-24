@@ -1304,12 +1304,12 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
   const isSuccess = !isClarify && !isSeatSelectTask && (gestureLabel === "Daumen hoch" || payload.decision === "execute");
   const isCancelled = !isClarify && !isSeatSelectTask && (isSwipe || payload.decision === "cancel");
   const { showVoiceActions, showGestureActions } = popupModalityVisibility(payload);
-  const driverSeatLevel = 1;
-  const passengerSeatLevel = hasRotatedToIncreaseHeat ? 2 : 1;
+  const driverSeatLevel = isScenario22 && hasRotatedToIncreaseHeat ? 2 : 1;
+  const passengerSeatLevel = 1;
   const selectedSeat = isScenario22
     ? hasSwipeSelectedPassenger || hasRotatedToIncreaseHeat
-      ? 2
-      : 1
+      ? 1
+      : 2
     : isSeatSelectTask && isSelectingSeatHeat
       ? 2
       : 1;
@@ -1336,10 +1336,10 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
     ? payload.overlay_body || "Sitzheizung einstellen."
     : isScenario22
       ? hasRotatedToIncreaseHeat
-        ? "Beifahrersitzheizung erhöht."
+        ? "Fahrersitzheizung erhöht."
         : hasSwipeSelectedPassenger
-          ? "Beifahrersitz ausgewählt."
-          : "Fahrer: niedrig. Beifahrer: niedrig."
+          ? "Fahrersitz ausgewählt."
+          : "Beifahrer: niedrig. Fahrer: niedrig."
     : isSelectingSeatHeat
       ? payload.accepted_text || "Sitzheizung ausgewählt."
       : isSuccess
@@ -1351,10 +1351,10 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
             : payload.overlay_body || payload.prompt || "Sitz 1 wird wärmer gestellt.";
   const statusBadge = isScenario22
     ? hasRotatedToIncreaseHeat
-      ? "Drehen erkannt"
+      ? "Heizung erhöht"
       : hasSwipeSelectedPassenger
-        ? "Swipe erkannt"
-        : "Swipe zum Wechseln / Auswählen"
+        ? "Fahrer ausgewählt"
+        : "Bereit"
     : isAdjusting
       ? "Drehen erkannt"
       : isSelectingSeatHeat
@@ -1364,8 +1364,8 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
     ? hasRotatedToIncreaseHeat
       ? "Stufe 2"
       : hasSwipeSelectedPassenger
-        ? "Jetzt drehen zum Erhöhen"
-        : "Swipe zum Wechseln / Auswählen"
+        ? ""
+        : ""
     : isSelectingSeatHeat
       ? "Sitzheizung auswählen"
       : isAdjusting
@@ -1407,7 +1407,7 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
 
         <div className="climate-popup__content">
           <div className="climate-popup__seat-panel">
-            <span className="climate-popup__label">{isScenario22 ? "Sitzheizung" : isAdjusting ? "Temperatur erhöht" : isSeatSelectTask ? "Sitzheizung auswählen" : "Klimaeinstellung"}</span>
+            <span className="climate-popup__label">{isAdjusting ? "Temperatur erhöht" : isSeatSelectTask ? "Sitzheizung auswählen" : isScenario22 ? "" : "Klimaeinstellung"}</span>
             <strong>{body}</strong>
             <div className="climate-popup__stage-strip">
               <span className={`climate-popup__stage-badge ${isScenario22 && isCompletedStage ? "climate-popup__stage-badge--success" : isScenario22 && (isPassengerSelectedStage || isHeatIncreasedStage) ? "climate-popup__stage-badge--active" : ""}`}>
@@ -1423,41 +1423,6 @@ function ClimatePopupWidget({ payload, state, onPreviewGesture }: { payload: Wid
           </div>
         </div>
 
-
-
-        {!isClarify && showGestureActions && (
-          <div className="climate-popup__actions" aria-label="Sitzheizungsgesten">
-            {isScenario22 ? (
-              <>
-                <span className={`climate-popup__chip climate-popup__chip--cancel ${scenario22SwipeActive ? "climate-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-                  <span aria-hidden>↔</span>Swipe
-                </span>
-                <span className={`climate-popup__chip climate-popup__chip--adjust ${scenario22RotateActive ? "climate-popup__chip--active" : ""} ${!scenario22RotateActive ? "climate-popup__chip--secondary" : ""}`} {...previewChipProps("Handgelenk drehen", onPreviewGesture)}>
-                  <span aria-hidden>↻</span>Drehen
-                </span>
-              </>
-            ) : (
-              <>
-                <span className={`climate-popup__chip climate-popup__chip--cancel ${isCancelled || isSelectingSeatHeat ? "climate-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-                  <span aria-hidden>↔</span>Swipe
-                </span>
-                <span className={`climate-popup__chip climate-popup__chip--adjust ${isAdjusting ? "climate-popup__chip--active" : ""}`} {...previewChipProps("Handgelenk drehen", onPreviewGesture)}>
-                  <span aria-hidden>↻</span>Handgelenk drehen
-                </span>
-              </>
-            )}
-          </div>
-        )}
-        {!isClarify && showVoiceActions && !isScenario22 && (
-          <div className="climate-popup__actions" aria-label="Sitzheizungsentscheidung">
-            <button className={`climate-popup__button climate-popup__button--accept ${isSuccess ? "climate-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Handgelenk drehen") : undefined}>
-              Annehmen
-            </button>
-            <button className={`climate-popup__button climate-popup__button--decline ${isCancelled ? "climate-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Swipe") : undefined}>
-              Ablehnen
-            </button>
-          </div>
-        )}
       </section>
     </div>
   );
