@@ -90,68 +90,53 @@ export function CallWidget({ payload, state, onPreviewGesture }: { payload: Widg
               )}
             </div>
 
-            {!isClarify && (isVolumeTask ? (
-              <>
-                {showGestureActions && (
-                  <div className="call-popup__actions" aria-label="Anruflautstärke">
-                    <span className={`call-popup__chip call-popup__chip--volume ${isVolumeAdjusting ? "call-popup__chip--active" : ""}`} {...previewChipProps("Handgelenk drehen", onPreviewGesture)}>
-                      <span aria-hidden>↻</span>Handgelenk drehen
-                    </span>
-                  </div>
-                )}
-                {showVoiceActions && (
-                  <div className="call-popup__actions" aria-label="Anruflautstärke per Sprache">
-                    <button className={`call-popup__button call-popup__button--accept ${isVolumeAdjusting ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Handgelenk drehen") : undefined}>
-                      {payload.expected_voice || "Mach lauter"}
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {showGestureActions && isIncomingTask && (
-                  <div className="call-popup__actions" aria-label="Anrufgesten">
-                    <span className={`call-popup__chip call-popup__chip--accept ${gestureLabel === "Daumen hoch" ? "call-popup__chip--active" : ""}`} {...previewChipProps("Daumen hoch", onPreviewGesture)}>
-                      <span aria-hidden>👍</span>Daumen hoch
-                    </span>
-                    <span className={`call-popup__chip call-popup__chip--decline ${gestureLabel === "Swipe" ? "call-popup__chip--active" : ""}`} {...previewChipProps("Swipe", onPreviewGesture)}>
-                      <span aria-hidden>↔</span>Swipe
-                    </span>
-                  </div>
-                )}
-                {showVoiceActions && (
-                  <div className="call-popup__actions" aria-label="Anrufaktionen">
-                    {previewActions ? previewActions.map((action) => (
-                      <button
-                        key={action.label}
-                        className={`call-popup__button call-popup__button--${action.kind === "decline" ? "decline" : "accept"}`}
-                        type="button"
-                        onClick={() => onPreviewGesture?.(action.action)}
-                      >
-                        {action.label}
-                      </button>
-                    )) : isIncomingTask ? (
-                      <>
-                        <button className={`call-popup__button call-popup__button--accept ${payload.decision === "execute" && (payload.task_id === "CALL-INCOMING" || payload.task_id === "CALL-ACTIVE") ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Annehmen") : undefined}>
-                          Annehmen
-                        </button>
-                        <button className={`call-popup__button call-popup__button--decline ${payload.decision === "cancel" ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Ablehnen") : undefined}>
-                          Ablehnen
-                        </button>
-                      </>
-                    ) : isActiveTask ? (
-                      <>
-                        <button className={`call-popup__button call-popup__button--decline ${gestureLabel === "Auflegen" ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Auflegen") : undefined}>
-                          Auflegen
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
-                )}
-              </>
-            ))}
+
           </>
         )}
+
+        {!isClarify && (isVolumeTask ? (
+          <>
+            {showVoiceActions && (
+              <div className="call-popup__actions" aria-label="Anruflautstärke per Sprache">
+                <button className={`call-popup__button call-popup__button--accept ${isVolumeAdjusting ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Handgelenk drehen") : undefined}>
+                  {payload.expected_voice || "Mach lauter"}
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {showVoiceActions && (
+              <div className="call-popup__actions" aria-label="Anrufaktionen">
+                {previewActions ? previewActions.map((action) => (
+                  <button
+                    key={action.label}
+                    className={`call-popup__button call-popup__button--${action.kind === "decline" ? "decline" : "accept"}`}
+                    type="button"
+                    onClick={() => onPreviewGesture?.(action.action)}
+                  >
+                    {action.label}
+                  </button>
+                )) : isIncomingTask ? (
+                  <>
+                    <button className={`call-popup__button call-popup__button--accept ${payload.decision === "execute" && (payload.task_id === "CALL-INCOMING" || payload.task_id === "CALL-ACTIVE") ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Annehmen") : undefined}>
+                      Annehmen
+                    </button>
+                    <button className={`call-popup__button call-popup__button--decline ${payload.decision === "cancel" ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Ablehnen") : undefined}>
+                      Ablehnen
+                    </button>
+                  </>
+                ) : isActiveTask ? (
+                  <>
+                    <button className={`call-popup__button call-popup__button--decline ${gestureLabel === "Auflegen" ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Auflegen") : undefined}>
+                      Auflegen
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            )}
+          </>
+        ))}
       </section>
     </div>
   );
