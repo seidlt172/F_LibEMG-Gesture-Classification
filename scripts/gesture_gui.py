@@ -1263,6 +1263,24 @@ class GestureGUI:
         ts   = now.strftime("%H:%M:%S")
         normalized_source = "emg" if str(source).lower() == "emg" else source
         confidence = getattr(self, "_current_confidence", None) if normalized_source == "emg" else None
+
+        live_emg_name = None
+        live_emg_confidence = None
+        if normalized_source in {"manual", "wizard"}:
+            now_ts = time.time()
+            with state.lock:
+                window = [
+                    (l, c) for (t, l, c) in state.live_feed 
+                    if (now_ts - 2.5) <= t <= (now_ts - 0.5) and l != 0
+                ]
+            if window:
+                import collections
+                labels = [l for l, c in window]
+                best_label = collections.Counter(labels).most_common(1)[0][0]
+                confs = [c for l, c in window if l == best_label]
+                live_emg_confidence = sum(confs) / len(confs) if confs else 0.0
+                live_emg_name = GESTURE_NAMES.get(best_label, f"class_{best_label}")
+
         gesture_event = create_gesture_event(
             name,
             source=normalized_source,
@@ -1277,6 +1295,9 @@ class GestureGUI:
             "wizard_intervention": gesture_event["recognition_outcome"] == "wizard_intervention",
             "gesture_event": gesture_event,
         }
+        if live_emg_name:
+            metadata["live_emg_gesture"] = live_emg_name
+            metadata["live_emg_confidence"] = live_emg_confidence
 
         self.last_logged_gesture = gesture_event["gesture_label"] or "NONE"
         self.last_logged_gesture_source = gesture_event["source"]
@@ -1294,6 +1315,8 @@ class GestureGUI:
         )
 
         entry = f"{ts}  {icon} {name}  [{self.last_logged_gesture_source}]"
+        if live_emg_name:
+            entry += f"  (Live EMG: {live_emg_name} {live_emg_confidence*100:.0f}%)"
         self._append_log_row(entry)
 
         if self.last_logged_gesture_source in {"manual", "wizard"}:
