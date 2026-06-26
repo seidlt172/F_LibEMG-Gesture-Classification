@@ -94,17 +94,7 @@ export function CallWidget({ payload, state, onPreviewGesture }: { payload: Widg
           </>
         )}
 
-        {!isClarify && (isVolumeTask ? (
-          <>
-            {showVoiceActions && (
-              <div className="call-popup__actions" aria-label="Anruflautstärke per Sprache">
-                <button className={`call-popup__button call-popup__button--accept ${isVolumeAdjusting ? "call-popup__button--active" : ""}`} type="button" onClick={onPreviewGesture ? () => onPreviewGesture("Handgelenk drehen") : undefined}>
-                  {payload.expected_voice || "Mach lauter"}
-                </button>
-              </div>
-            )}
-          </>
-        ) : (
+        {!isClarify && (isVolumeTask ? null : (
           <>
             {showVoiceActions && (
               <div className="call-popup__actions" aria-label="Anrufaktionen">
