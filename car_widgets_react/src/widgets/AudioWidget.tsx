@@ -39,6 +39,8 @@ export function AudioWidget({ payload, state, onPreviewGesture }: { payload: Wid
 
 
 
+  const isSuggestionTask = payload.task_id === "AUDIO-SUGGESTION";
+
   const stageClass = isClarify
     ? "audio-popup--clarify"
     : isVolume
@@ -85,27 +87,28 @@ export function AudioWidget({ payload, state, onPreviewGesture }: { payload: Wid
             </div>
           </div>
 
-          <div className="music-widget-controls">
-            <div className="music-volume-row" aria-label={`Lautstärke ${volume}%`}>
-              <div className="music-volume-track">
-                <span className="music-volume-fill" style={{ width: `${volume}%` }} />
+          {!isSuggestionTask && (
+            <div className="music-widget-controls">
+              <div className="music-volume-row" aria-label={`Lautstärke ${volume}%`}>
+                <div className="music-volume-track">
+                  <span className="music-volume-fill" style={{ width: `${volume}%` }} />
+                </div>
+                <span className="music-volume-value">{volume}%</span>
               </div>
-              <span className="music-volume-value">{volume}%</span>
-            </div>
 
-            <div className="music-control-row" aria-label="Musiksteuerung">
-              <button className="music-control-button" type="button" aria-label="Vorheriger Titel">
-                <span aria-hidden>{"<"}</span>
-              </button>
-              <button className="music-control-button play" type="button" aria-label="Abspielen">
-                <span aria-hidden>{isPlaying ? "||" : "▶"}</span>
-              </button>
-              <button className={`music-control-button ${isSkipped ? 'active' : ''}`} type="button" aria-label="Nächster Titel">
-                <span aria-hidden>{">"}</span>
-              </button>
+              <div className="music-control-row" aria-label="Musiksteuerung">
+                <button className="music-control-button" type="button" aria-label="Vorheriger Titel">
+                  <span aria-hidden>{"<"}</span>
+                </button>
+                <button className="music-control-button play" type="button" aria-label="Abspielen">
+                  <span aria-hidden>{isPlaying ? "||" : "▶"}</span>
+                </button>
+                <button className={`music-control-button ${isSkipped ? 'active' : ''}`} type="button" aria-label="Nächster Titel">
+                  <span aria-hidden>{">"}</span>
+                </button>
+              </div>
             </div>
-
-          </div>
+          )}
         </div>
       </section>
     </div>
