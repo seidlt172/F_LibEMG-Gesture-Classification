@@ -14,7 +14,7 @@ IMPORTANT: The preprocessing here (DC offset removal) MUST match
 what was done during training in 04_train.ipynb.
 
 Usage:
-    Terminal 1: python scripts/mindrove_streamer.py 
+    Terminal 1: python3 scripts/mindrove_streamer.py 
     source venv/bin/activate
     python scripts/mindrove_streamer.py
     Terminal 2: python scripts/live_demo.py
