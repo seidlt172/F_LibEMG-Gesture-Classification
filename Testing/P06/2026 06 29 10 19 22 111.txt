@@ -1,0 +1,463 @@
+[2026-06-29 10:19:22,111] DEBUG: Creating converter from 7 to 5
+[2026-06-29 10:19:22,111] DEBUG: Creating converter from 5 to 7
+[2026-06-29 10:19:22,111] DEBUG: Creating converter from 7 to 5
+[2026-06-29 10:19:22,111] DEBUG: Creating converter from 5 to 7
+Bluepy not installed...
+[2026-06-29 10:31:34,108] INFO: Starting recording...
+[2026-06-29 10:31:34,109] INFO: Opening audio stream...
+[2026-06-29 10:31:34,111] INFO: Initializing PyAudio...
+ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.rear
+ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.center_lfe
+ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.side
+ALSA lib pcm_route.c:878:(find_matching_chmap) Found no matching channel map
+ALSA lib pcm_route.c:878:(find_matching_chmap) Found no matching channel map
+ALSA lib pcm_route.c:878:(find_matching_chmap) Found no matching channel map
+ALSA lib pcm_route.c:878:(find_matching_chmap) Found no matching channel map
+Expression 'alsa_snd_pcm_hw_params_set_buffer_size_near( pcm, hwParams, &alsaBufferFrames )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 923
+Expression 'alsa_snd_pcm_hw_params_set_buffer_size_near( pcm, hwParams, &alsaBufferFrames )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 923
+Expression 'alsa_snd_pcm_hw_params_set_buffer_size_near( pcm, hwParams, &alsaBufferFrames )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 923
+Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+ALSA lib pcm_oss.c:397:(_snd_pcm_oss_open) Cannot open device /dev/dsp
+ALSA lib pcm_oss.c:397:(_snd_pcm_oss_open) Cannot open device /dev/dsp
+ALSA lib pcm_a52.c:1001:(_snd_pcm_a52_open) a52 is only for playback
+ALSA lib confmisc.c:160:(snd_config_get_card) Invalid field card
+ALSA lib pcm_usb_stream.c:482:(_snd_pcm_usb_stream_open) Invalid card 'card'
+ALSA lib confmisc.c:160:(snd_config_get_card) Invalid field card
+ALSA lib pcm_usb_stream.c:482:(_snd_pcm_usb_stream_open) Invalid card 'card'
+Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+[2026-06-29 10:31:34,409] INFO: ✓ PyAudio initialized
+[2026-06-29 10:31:34,410] INFO: Opening stream on system default microphone...
+[2026-06-29 10:31:34,415] INFO: ✓ Stream opened successfully
+[2026-06-29 10:31:34,415] INFO: Recording loop: ACTIVE
+[2026-06-29 10:31:34,415] INFO: ✓ Recording thread started
+[2026-06-29 10:31:34,415] INFO: Recording started successfully
+[2026-06-29 10:31:35,634] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:31:36,455] INFO: Stopping recording...
+[2026-06-29 10:31:36,455] INFO: Stopping recording...
+[2026-06-29 10:31:36,489] INFO: Recording loop: STOPPED (87 total frames)
+[2026-06-29 10:31:36,491] INFO: Writing 87 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:31:36,491] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:31:36,491] INFO: ✓ File size: 178220 bytes (87 frames)
+[2026-06-29 10:31:36,491] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:31:36,491] INFO: Recording stopped and saved
+[2026-06-29 10:31:36,498] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:31:36,499] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:31:37,338] INFO: [SpeechTranscriber] Loading Whisper model: base
+[2026-06-29 10:31:37,863] INFO: [SpeechTranscriber] Whisper model loaded successfully
+[2026-06-29 10:31:37,863] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:31:37,863] INFO: [SpeechTranscriber] File size: 178220 bytes
+[2026-06-29 10:31:38,579] INFO: [SpeechTranscriber] Transcription successful: Wir sehen mal. Am av Someone bin schon martyrlich. Uuuu
+[2026-06-29 10:31:38,598] INFO: Transcription complete: Wir sehen mal. Am av Someone bin schon martyrlich. Uuuu
+[2026-06-29 10:31:41,983] INFO: Starting recording...
+[2026-06-29 10:31:41,983] INFO: Opening audio stream...
+[2026-06-29 10:31:41,983] INFO: Opening stream on system default microphone...
+[2026-06-29 10:31:41,989] INFO: ✓ Stream opened successfully
+[2026-06-29 10:31:41,989] INFO: Recording loop: ACTIVE
+[2026-06-29 10:31:41,989] INFO: ✓ Recording thread started
+[2026-06-29 10:31:41,990] INFO: Recording started successfully
+[2026-06-29 10:31:43,208] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:31:44,362] DEBUG: Recording: 100 frames captured
+[2026-06-29 10:31:45,185] INFO: Stopping recording...
+[2026-06-29 10:31:45,185] INFO: Stopping recording...
+[2026-06-29 10:31:45,215] INFO: Recording loop: STOPPED (136 total frames)
+[2026-06-29 10:31:45,217] INFO: Writing 136 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:31:45,218] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:31:45,218] INFO: ✓ File size: 278572 bytes (136 frames)
+[2026-06-29 10:31:45,218] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:31:45,218] INFO: Recording stopped and saved
+[2026-06-29 10:31:45,265] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:31:45,265] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:31:45,265] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:31:45,265] INFO: [SpeechTranscriber] File size: 278572 bytes
+[2026-06-29 10:31:45,447] INFO: [SpeechTranscriber] Transcription successful: ее
+[2026-06-29 10:31:45,466] INFO: Transcription complete: ее
+[2026-06-29 10:31:51,898] INFO: Starting recording...
+[2026-06-29 10:31:51,899] INFO: Opening audio stream...
+[2026-06-29 10:31:51,899] INFO: Opening stream on system default microphone...
+[2026-06-29 10:31:51,906] INFO: ✓ Stream opened successfully
+[2026-06-29 10:31:51,907] INFO: Recording loop: ACTIVE
+[2026-06-29 10:31:51,907] INFO: ✓ Recording thread started
+[2026-06-29 10:31:51,907] INFO: Recording started successfully
+[2026-06-29 10:31:53,125] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:31:53,698] INFO: Stopping recording...
+[2026-06-29 10:31:53,698] INFO: Stopping recording...
+[2026-06-29 10:31:53,724] INFO: Recording loop: STOPPED (76 total frames)
+[2026-06-29 10:31:53,726] INFO: Writing 76 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:31:53,727] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:31:53,727] INFO: ✓ File size: 155692 bytes (76 frames)
+[2026-06-29 10:31:53,727] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:31:53,727] INFO: Recording stopped and saved
+[2026-06-29 10:31:53,747] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:31:53,747] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:31:53,748] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:31:53,748] INFO: [SpeechTranscriber] File size: 155692 bytes
+[2026-06-29 10:31:53,817] INFO: [SpeechTranscriber] Transcription successful: 
+[2026-06-29 10:31:53,848] WARNING: Transcription returned empty text
+[2026-06-29 10:32:02,871] INFO: Starting recording...
+[2026-06-29 10:32:02,872] INFO: Opening audio stream...
+[2026-06-29 10:32:02,872] INFO: Opening stream on system default microphone...
+[2026-06-29 10:32:02,879] INFO: ✓ Stream opened successfully
+[2026-06-29 10:32:02,879] INFO: Recording loop: ACTIVE
+[2026-06-29 10:32:02,880] INFO: ✓ Recording thread started
+[2026-06-29 10:32:02,880] INFO: Recording started successfully
+[2026-06-29 10:32:04,158] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:32:05,312] DEBUG: Recording: 100 frames captured
+[2026-06-29 10:32:05,473] INFO: Stopping recording...
+[2026-06-29 10:32:05,473] INFO: Stopping recording...
+[2026-06-29 10:32:05,483] INFO: Recording loop: STOPPED (107 total frames)
+[2026-06-29 10:32:05,485] INFO: Writing 107 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:32:05,485] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:32:05,486] INFO: ✓ File size: 219180 bytes (107 frames)
+[2026-06-29 10:32:05,486] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:32:05,486] INFO: Recording stopped and saved
+[2026-06-29 10:32:05,488] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:32:05,488] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:32:05,488] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:32:05,488] INFO: [SpeechTranscriber] File size: 219180 bytes
+[2026-06-29 10:32:05,668] INFO: [SpeechTranscriber] Transcription successful: mit der Alkgraduatein
+[2026-06-29 10:32:05,688] INFO: Transcription complete: mit der Alkgraduatein
+[2026-06-29 10:32:48,915] INFO: Starting recording...
+[2026-06-29 10:32:48,915] INFO: Opening audio stream...
+[2026-06-29 10:32:48,916] INFO: Opening stream on system default microphone...
+[2026-06-29 10:32:48,922] INFO: ✓ Stream opened successfully
+[2026-06-29 10:32:48,923] INFO: Recording loop: ACTIVE
+[2026-06-29 10:32:48,923] INFO: ✓ Recording thread started
+[2026-06-29 10:32:48,923] INFO: Recording started successfully
+[2026-06-29 10:32:50,203] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:32:51,358] DEBUG: Recording: 100 frames captured
+[2026-06-29 10:32:52,509] DEBUG: Recording: 150 frames captured
+[2026-06-29 10:32:52,732] INFO: Stopping recording...
+[2026-06-29 10:32:52,732] INFO: Stopping recording...
+[2026-06-29 10:32:52,765] INFO: Recording loop: STOPPED (160 total frames)
+[2026-06-29 10:32:52,767] INFO: Writing 160 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:32:52,768] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:32:52,768] INFO: ✓ File size: 327724 bytes (160 frames)
+[2026-06-29 10:32:52,768] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:32:52,768] INFO: Recording stopped and saved
+[2026-06-29 10:32:52,792] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:32:52,792] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:32:52,792] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:32:52,792] INFO: [SpeechTranscriber] File size: 327724 bytes
+[2026-06-29 10:32:53,011] INFO: [SpeechTranscriber] Transcription successful: W boleh die Bauchteile denn?
+[2026-06-29 10:32:53,043] INFO: Transcription complete: W boleh die Bauchteile denn?
+[2026-06-29 10:33:00,653] INFO: Starting recording...
+[2026-06-29 10:33:00,653] INFO: Opening audio stream...
+[2026-06-29 10:33:00,653] INFO: Opening stream on system default microphone...
+[2026-06-29 10:33:00,660] INFO: ✓ Stream opened successfully
+[2026-06-29 10:33:00,660] INFO: Recording loop: ACTIVE
+[2026-06-29 10:33:00,660] INFO: ✓ Recording thread started
+[2026-06-29 10:33:00,660] INFO: Recording started successfully
+[2026-06-29 10:33:01,938] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:33:03,093] DEBUG: Recording: 100 frames captured
+[2026-06-29 10:33:04,244] DEBUG: Recording: 150 frames captured
+[2026-06-29 10:33:04,816] INFO: Stopping recording...
+[2026-06-29 10:33:04,816] INFO: Stopping recording...
+[2026-06-29 10:33:04,841] INFO: Recording loop: STOPPED (175 total frames)
+[2026-06-29 10:33:04,843] INFO: Writing 175 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:33:04,843] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:04,843] INFO: ✓ File size: 358444 bytes (175 frames)
+[2026-06-29 10:33:04,843] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:33:04,844] INFO: Recording stopped and saved
+[2026-06-29 10:33:04,877] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:33:04,877] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:04,877] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:04,877] INFO: [SpeechTranscriber] File size: 358444 bytes
+[2026-06-29 10:33:05,084] INFO: [SpeechTranscriber] Transcription successful: Alpha
+[2026-06-29 10:33:05,127] INFO: Transcription complete: Alpha
+[2026-06-29 10:33:14,813] INFO: Starting recording...
+[2026-06-29 10:33:14,814] INFO: Opening audio stream...
+[2026-06-29 10:33:14,814] INFO: Opening stream on system default microphone...
+[2026-06-29 10:33:14,821] INFO: ✓ Stream opened successfully
+[2026-06-29 10:33:14,821] INFO: Recording loop: ACTIVE
+[2026-06-29 10:33:14,821] INFO: ✓ Recording thread started
+[2026-06-29 10:33:14,821] INFO: Recording started successfully
+[2026-06-29 10:33:16,099] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:33:17,026] INFO: Stopping recording...
+[2026-06-29 10:33:17,026] INFO: Stopping recording...
+[2026-06-29 10:33:17,040] INFO: Recording loop: STOPPED (91 total frames)
+[2026-06-29 10:33:17,042] INFO: Writing 91 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:33:17,043] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:17,043] INFO: ✓ File size: 186412 bytes (91 frames)
+[2026-06-29 10:33:17,043] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:33:17,043] INFO: Recording stopped and saved
+[2026-06-29 10:33:17,072] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:33:17,073] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:17,073] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:17,073] INFO: [SpeechTranscriber] File size: 186412 bytes
+[2026-06-29 10:33:17,130] INFO: [SpeechTranscriber] Transcription successful: Alter
+[2026-06-29 10:33:17,173] INFO: Transcription complete: Alter
+[2026-06-29 10:33:46,577] INFO: Starting recording...
+[2026-06-29 10:33:46,578] INFO: Opening audio stream...
+[2026-06-29 10:33:46,578] INFO: Opening stream on system default microphone...
+[2026-06-29 10:33:46,585] INFO: ✓ Stream opened successfully
+[2026-06-29 10:33:46,585] INFO: Recording loop: ACTIVE
+[2026-06-29 10:33:46,585] INFO: ✓ Recording thread started
+[2026-06-29 10:33:46,585] INFO: Recording started successfully
+[2026-06-29 10:33:47,863] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:33:48,399] INFO: Stopping recording...
+[2026-06-29 10:33:48,399] INFO: Stopping recording...
+[2026-06-29 10:33:48,420] INFO: Recording loop: STOPPED (74 total frames)
+[2026-06-29 10:33:48,422] INFO: Writing 74 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:33:48,422] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:48,422] INFO: ✓ File size: 151596 bytes (74 frames)
+[2026-06-29 10:33:48,422] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:33:48,422] INFO: Recording stopped and saved
+[2026-06-29 10:33:48,448] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:33:48,448] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:48,448] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:48,448] INFO: [SpeechTranscriber] File size: 151596 bytes
+[2026-06-29 10:33:48,527] INFO: [SpeechTranscriber] Transcription successful: 
+[2026-06-29 10:33:48,548] WARNING: Transcription returned empty text
+[2026-06-29 10:33:52,232] INFO: Starting recording...
+[2026-06-29 10:33:52,232] INFO: Opening audio stream...
+[2026-06-29 10:33:52,232] INFO: Opening stream on system default microphone...
+[2026-06-29 10:33:52,239] INFO: ✓ Stream opened successfully
+[2026-06-29 10:33:52,239] INFO: Recording loop: ACTIVE
+[2026-06-29 10:33:52,239] INFO: ✓ Recording thread started
+[2026-06-29 10:33:52,239] INFO: Recording started successfully
+[2026-06-29 10:33:53,432] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:33:54,583] DEBUG: Recording: 100 frames captured
+[2026-06-29 10:33:54,692] INFO: Stopping recording...
+[2026-06-29 10:33:54,692] INFO: Stopping recording...
+[2026-06-29 10:33:54,711] INFO: Recording loop: STOPPED (105 total frames)
+[2026-06-29 10:33:54,713] INFO: Writing 105 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:33:54,714] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:54,714] INFO: ✓ File size: 215084 bytes (105 frames)
+[2026-06-29 10:33:54,714] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:33:54,714] INFO: Recording stopped and saved
+[2026-06-29 10:33:54,764] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:33:54,764] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:54,764] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:33:54,764] INFO: [SpeechTranscriber] File size: 215084 bytes
+[2026-06-29 10:33:54,832] INFO: [SpeechTranscriber] Transcription successful: Ich darf nicht öffnen.
+[2026-06-29 10:33:54,864] INFO: Transcription complete: Ich darf nicht öffnen.
+[2026-06-29 10:33:58,757] INFO: Starting recording...
+[2026-06-29 10:33:58,757] INFO: Opening audio stream...
+[2026-06-29 10:33:58,757] INFO: Opening stream on system default microphone...
+[2026-06-29 10:33:58,764] INFO: ✓ Stream opened successfully
+[2026-06-29 10:33:58,764] INFO: Recording loop: ACTIVE
+[2026-06-29 10:33:58,764] INFO: ✓ Recording thread started
+[2026-06-29 10:33:58,764] INFO: Recording started successfully
+[2026-06-29 10:33:59,938] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:34:00,745] INFO: Stopping recording...
+[2026-06-29 10:34:00,745] INFO: Stopping recording...
+[2026-06-29 10:34:00,749] INFO: Recording loop: STOPPED (85 total frames)
+[2026-06-29 10:34:00,751] INFO: Writing 85 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:34:00,751] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:34:00,751] INFO: ✓ File size: 174124 bytes (85 frames)
+[2026-06-29 10:34:00,751] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:34:00,751] INFO: Recording stopped and saved
+[2026-06-29 10:34:00,779] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:34:00,779] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:34:00,779] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:34:00,779] INFO: [SpeechTranscriber] File size: 174124 bytes
+[2026-06-29 10:34:00,967] INFO: [SpeechTranscriber] Transcription successful: Je coffin facility es enzymes
+[2026-06-29 10:34:00,979] INFO: Transcription complete: Je coffin facility es enzymes
+[2026-06-29 10:34:30,071] INFO: Starting recording...
+[2026-06-29 10:34:30,071] INFO: Opening audio stream...
+[2026-06-29 10:34:30,072] INFO: Opening stream on system default microphone...
+[2026-06-29 10:34:30,079] INFO: ✓ Stream opened successfully
+[2026-06-29 10:34:30,079] INFO: Recording loop: ACTIVE
+[2026-06-29 10:34:30,079] INFO: ✓ Recording thread started
+[2026-06-29 10:34:30,079] INFO: Recording started successfully
+[2026-06-29 10:34:31,359] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:34:32,283] INFO: Stopping recording...
+[2026-06-29 10:34:32,283] INFO: Stopping recording...
+[2026-06-29 10:34:32,300] INFO: Recording loop: STOPPED (91 total frames)
+[2026-06-29 10:34:32,302] INFO: Writing 91 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:34:32,303] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:34:32,303] INFO: ✓ File size: 186412 bytes (91 frames)
+[2026-06-29 10:34:32,303] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:34:32,303] INFO: Recording stopped and saved
+[2026-06-29 10:34:32,331] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:34:32,331] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:34:32,331] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:34:32,331] INFO: [SpeechTranscriber] File size: 186412 bytes
+[2026-06-29 10:34:32,396] INFO: [SpeechTranscriber] Transcription successful: 
+[2026-06-29 10:34:32,431] WARNING: Transcription returned empty text
+[2026-06-29 10:35:13,527] INFO: Starting recording...
+[2026-06-29 10:35:13,528] INFO: Opening audio stream...
+[2026-06-29 10:35:13,528] INFO: Opening stream on system default microphone...
+[2026-06-29 10:35:13,535] INFO: ✓ Stream opened successfully
+[2026-06-29 10:35:13,535] INFO: Recording loop: ACTIVE
+[2026-06-29 10:35:13,535] INFO: ✓ Recording thread started
+[2026-06-29 10:35:13,535] INFO: Recording started successfully
+[2026-06-29 10:35:14,817] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:35:15,972] DEBUG: Recording: 100 frames captured
+[2026-06-29 10:35:16,489] INFO: Stopping recording...
+[2026-06-29 10:35:16,489] INFO: Stopping recording...
+[2026-06-29 10:35:16,526] INFO: Recording loop: STOPPED (124 total frames)
+[2026-06-29 10:35:16,528] INFO: Writing 124 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:35:16,529] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:35:16,529] INFO: ✓ File size: 253996 bytes (124 frames)
+[2026-06-29 10:35:16,529] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:35:16,529] INFO: Recording stopped and saved
+[2026-06-29 10:35:16,563] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:35:16,563] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:35:16,563] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:35:16,563] INFO: [SpeechTranscriber] File size: 253996 bytes
+[2026-06-29 10:35:16,739] INFO: [SpeechTranscriber] Transcription successful: Mutt Estульton
+[2026-06-29 10:35:16,764] INFO: Transcription complete: Mutt Estульton
+[2026-06-29 10:35:26,090] INFO: Starting recording...
+[2026-06-29 10:35:26,091] INFO: Opening audio stream...
+[2026-06-29 10:35:26,091] INFO: Opening stream on system default microphone...
+[2026-06-29 10:35:26,098] INFO: ✓ Stream opened successfully
+[2026-06-29 10:35:26,098] INFO: Recording loop: ACTIVE
+[2026-06-29 10:35:26,098] INFO: ✓ Recording thread started
+[2026-06-29 10:35:26,099] INFO: Recording started successfully
+[2026-06-29 10:35:27,376] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:35:28,531] DEBUG: Recording: 100 frames captured
+[2026-06-29 10:35:29,682] DEBUG: Recording: 150 frames captured
+[2026-06-29 10:35:30,833] DEBUG: Recording: 200 frames captured
+[2026-06-29 10:35:31,985] INFO: Stopping recording...
+[2026-06-29 10:35:31,985] INFO: Stopping recording...
+[2026-06-29 10:35:32,027] DEBUG: Recording: 250 frames captured
+[2026-06-29 10:35:32,027] INFO: Recording loop: STOPPED (250 total frames)
+[2026-06-29 10:35:32,029] INFO: Writing 250 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:35:32,030] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:35:32,030] INFO: ✓ File size: 512044 bytes (250 frames)
+[2026-06-29 10:35:32,030] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:35:32,030] INFO: Recording stopped and saved
+[2026-06-29 10:35:32,062] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:35:32,062] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:35:32,062] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:35:32,063] INFO: [SpeechTranscriber] File size: 512044 bytes
+[2026-06-29 10:35:32,271] INFO: [SpeechTranscriber] Transcription successful: Heute
+[2026-06-29 10:35:32,313] INFO: Transcription complete: Heute
+[2026-06-29 10:38:33,040] INFO: Starting recording...
+[2026-06-29 10:38:33,040] INFO: Opening audio stream...
+[2026-06-29 10:38:33,041] INFO: Opening stream on system default microphone...
+[2026-06-29 10:38:33,048] INFO: ✓ Stream opened successfully
+[2026-06-29 10:38:33,048] INFO: Recording loop: ACTIVE
+[2026-06-29 10:38:33,049] INFO: ✓ Recording thread started
+[2026-06-29 10:38:33,049] INFO: Recording started successfully
+[2026-06-29 10:38:34,328] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:38:35,483] DEBUG: Recording: 100 frames captured
+[2026-06-29 10:38:35,800] INFO: Stopping recording...
+[2026-06-29 10:38:35,800] INFO: Stopping recording...
+[2026-06-29 10:38:35,824] INFO: Recording loop: STOPPED (114 total frames)
+[2026-06-29 10:38:35,826] INFO: Writing 114 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:38:35,827] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:38:35,827] INFO: ✓ File size: 233516 bytes (114 frames)
+[2026-06-29 10:38:35,827] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:38:35,827] INFO: Recording stopped and saved
+[2026-06-29 10:38:35,838] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:38:35,838] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:38:35,838] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:38:35,838] INFO: [SpeechTranscriber] File size: 233516 bytes
+[2026-06-29 10:38:35,911] INFO: [SpeechTranscriber] Transcription successful: Amen.
+[2026-06-29 10:38:35,938] INFO: Transcription complete: Amen.
+[2026-06-29 10:39:33,641] INFO: Starting recording...
+[2026-06-29 10:39:33,641] INFO: Opening audio stream...
+[2026-06-29 10:39:33,641] INFO: Opening stream on system default microphone...
+[2026-06-29 10:39:33,649] INFO: ✓ Stream opened successfully
+[2026-06-29 10:39:33,649] INFO: Recording loop: ACTIVE
+[2026-06-29 10:39:33,649] INFO: ✓ Recording thread started
+[2026-06-29 10:39:33,649] INFO: Recording started successfully
+[2026-06-29 10:39:34,929] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:39:36,083] DEBUG: Recording: 100 frames captured
+[2026-06-29 10:39:37,235] DEBUG: Recording: 150 frames captured
+[2026-06-29 10:39:37,714] INFO: Stopping recording...
+[2026-06-29 10:39:37,714] INFO: Stopping recording...
+[2026-06-29 10:39:37,746] INFO: Recording loop: STOPPED (171 total frames)
+[2026-06-29 10:39:37,748] INFO: Writing 171 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:39:37,749] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:39:37,749] INFO: ✓ File size: 350252 bytes (171 frames)
+[2026-06-29 10:39:37,749] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:39:37,749] INFO: Recording stopped and saved
+[2026-06-29 10:39:37,762] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:39:37,762] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:39:37,762] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:39:37,762] INFO: [SpeechTranscriber] File size: 350252 bytes
+[2026-06-29 10:39:38,012] INFO: [SpeechTranscriber] Transcription successful: Ich bin in der bag ASB.
+[2026-06-29 10:39:38,012] INFO: Transcription complete: Ich bin in der bag ASB.
+[2026-06-29 10:39:43,489] INFO: Starting recording...
+[2026-06-29 10:39:43,489] INFO: Opening audio stream...
+[2026-06-29 10:39:43,489] INFO: Opening stream on system default microphone...
+[2026-06-29 10:39:43,496] INFO: ✓ Stream opened successfully
+[2026-06-29 10:39:43,496] INFO: Recording loop: ACTIVE
+[2026-06-29 10:39:43,496] INFO: ✓ Recording thread started
+[2026-06-29 10:39:43,496] INFO: Recording started successfully
+[2026-06-29 10:39:44,716] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:39:44,816] INFO: Stopping recording...
+[2026-06-29 10:39:44,817] INFO: Stopping recording...
+[2026-06-29 10:39:44,844] INFO: Recording loop: STOPPED (56 total frames)
+[2026-06-29 10:39:44,846] INFO: Writing 56 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:39:44,847] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:39:44,847] INFO: ✓ File size: 114732 bytes (56 frames)
+[2026-06-29 10:39:44,847] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:39:44,847] INFO: Recording stopped and saved
+[2026-06-29 10:39:44,878] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:39:44,878] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:39:44,878] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:39:44,879] INFO: [SpeechTranscriber] File size: 114732 bytes
+[2026-06-29 10:39:44,956] INFO: [SpeechTranscriber] Transcription successful: 
+[2026-06-29 10:39:44,979] WARNING: Transcription returned empty text
+[2026-06-29 10:39:51,791] INFO: Starting recording...
+[2026-06-29 10:39:51,791] INFO: Opening audio stream...
+[2026-06-29 10:39:51,791] INFO: Opening stream on system default microphone...
+[2026-06-29 10:39:51,798] INFO: ✓ Stream opened successfully
+[2026-06-29 10:39:51,798] INFO: Recording loop: ACTIVE
+[2026-06-29 10:39:51,799] INFO: ✓ Recording thread started
+[2026-06-29 10:39:51,799] INFO: Recording started successfully
+[2026-06-29 10:39:53,017] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:39:53,937] INFO: Stopping recording...
+[2026-06-29 10:39:53,937] INFO: Stopping recording...
+[2026-06-29 10:39:53,958] INFO: Recording loop: STOPPED (91 total frames)
+[2026-06-29 10:39:53,960] INFO: Writing 91 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:39:53,960] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:39:53,960] INFO: ✓ File size: 186412 bytes (91 frames)
+[2026-06-29 10:39:53,960] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:39:53,960] INFO: Recording stopped and saved
+[2026-06-29 10:39:54,000] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:39:54,000] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:39:54,000] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:39:54,001] INFO: [SpeechTranscriber] File size: 186412 bytes
+[2026-06-29 10:39:54,068] INFO: [SpeechTranscriber] Transcription successful: Ja, bitte.
+[2026-06-29 10:39:54,101] INFO: Transcription complete: Ja, bitte.
+Exception in Tkinter callback
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 1967, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "/home/karthik/F_LibEMG-Gesture-Classification/scripts/gesture_gui.py", line 2298, in _force_final_step_and_finish
+    self.trial_step_label.config(text=f"{step.task_id} ({final_index + 1}/{len(scenario.flow_steps)})")
+    ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'GestureGUI' object has no attribute 'trial_step_label'. Did you mean: 'trial_status_label'?
+[2026-06-29 10:41:26,174] INFO: Starting recording...
+[2026-06-29 10:41:26,174] INFO: Opening audio stream...
+[2026-06-29 10:41:26,175] INFO: Opening stream on system default microphone...
+[2026-06-29 10:41:26,183] INFO: ✓ Stream opened successfully
+[2026-06-29 10:41:26,183] INFO: Recording loop: ACTIVE
+[2026-06-29 10:41:26,183] INFO: ✓ Recording thread started
+[2026-06-29 10:41:26,184] INFO: Recording started successfully
+[2026-06-29 10:41:27,462] DEBUG: Recording: 50 frames captured
+[2026-06-29 10:41:28,616] DEBUG: Recording: 100 frames captured
+[2026-06-29 10:41:28,776] INFO: Stopping recording...
+[2026-06-29 10:41:28,776] INFO: Stopping recording...
+[2026-06-29 10:41:28,787] INFO: Recording loop: STOPPED (107 total frames)
+[2026-06-29 10:41:28,789] INFO: Writing 107 frames to /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav...
+[2026-06-29 10:41:28,789] INFO: ✓ WAV saved: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:41:28,789] INFO: ✓ File size: 219180 bytes (107 frames)
+[2026-06-29 10:41:28,789] INFO: ✓ Recording stopped and saved
+[2026-06-29 10:41:28,789] INFO: Recording stopped and saved
+[2026-06-29 10:41:28,839] INFO: Starting speech-to-text transcription...
+[2026-06-29 10:41:28,839] INFO: Transcribing file: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:41:28,839] INFO: [SpeechTranscriber] Transcribing: /home/karthik/F_LibEMG-Gesture-Classification/temp_voice.wav
+[2026-06-29 10:41:28,839] INFO: [SpeechTranscriber] File size: 219180 bytes
+[2026-06-29 10:41:28,915] INFO: [SpeechTranscriber] Transcription successful: Starts die Musik.
+[2026-06-29 10:41:28,939] INFO: Transcription complete: Starts die Musik.
+
