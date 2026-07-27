@@ -1,0 +1,24 @@
+Zeitstempel,Teilnehmer_ID,Test_Order,Alter,Geschlecht,Fuererschein,Fahrhaeufigkeit,Erfahrung_Sprachassistenten,Erfahrung_Gestensteuerung,Motorische_Einschränkungen
+6.26.2026 10:36:54,P01,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),22,Weiblich,Ja,Seltener,2,2,Nein
+6.26.2026 11:43:28,P02,Gestensteuerung (Gesture) -> Sprachsteuerung (Voice) -> Kombinierte Steuerung (Voice + Gesture),26,Männlich,Ja,Mehrmals pro Woche,5,3,Nein
+6.26.2026 13:36:30,P03,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),27,Männlich,Ja,Täglich,4,1,Nein
+6.26.2026 14:39:00,P04,Gestensteuerung (Gesture) -> Sprachsteuerung (Voice) -> Kombinierte Steuerung (Voice + Gesture),29,Männlich,Ja,Seltener,3,2,Nein
+6.26.2026 15:24:45,P05,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),29,Weiblich,Ja,Täglich,3,2,Nein
+6.29.2026 10:46:06,P06,Gestensteuerung (Gesture) -> Sprachsteuerung (Voice) -> Kombinierte Steuerung (Voice + Gesture),23,Weiblich,Ja,Täglich,3,1,Nein
+6.29.2026 11:45:23,P07,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),23,Männlich,Ja,Mehrmals pro Monat,3,1,Nein
+6.29.2026 12:42:21,P08,Gestensteuerung (Gesture) -> Sprachsteuerung (Voice) -> Kombinierte Steuerung (Voice + Gesture),24,Weiblich,Ja,Mehrmals pro Woche,3,1,Nein
+6.29.2026 14:16:28,P09,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),25,Weiblich,Ja,Mehrmals pro Monat,3,2,Nein
+6.29.2026 16:15:09,P11,Gestensteuerung (Gesture) -> Sprachsteuerung (Voice) -> Kombinierte Steuerung (Voice + Gesture),21,Weiblich,Ja,Täglich,5,3,Nein
+6.30.2026 10:55:41,P12,Gestensteuerung (Gesture) -> Sprachsteuerung (Voice) -> Kombinierte Steuerung (Voice + Gesture),29,Weiblich,Ja,Täglich,4,1,Nein
+6.30.2026 10:59:58,P10,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),27,Weiblich,Ja,Täglich,3,2,Nein
+7.1.2026 13:36:20,P14,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),22,Männlich,Ja,Mehrmals pro Woche,4,1,Nein
+7.1.2026 15:08:52,P15,Gestensteuerung (Gesture) -> Sprachsteuerung (Voice) -> Kombinierte Steuerung (Voice + Gesture),24,Männlich,Ja,Täglich,5,4,Nein
+7.1.2026 19:41:03,P16,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),21,Weiblich,Ja,Mehrmals pro Monat,4,1,Nein
+7.1.2026 19:51:55,P17,Gestensteuerung (Gesture) -> Sprachsteuerung (Voice) -> Kombinierte Steuerung (Voice + Gesture),23,Weiblich,Ja,Mehrmals pro Woche,3,2,Nein
+7.2.2026 14:07:43,P18,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),22,Männlich,Ja,Mehrmals pro Woche,4,1,Nein
+7.2.2026 14:55:04,P19,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),29,Weiblich,Ja,Nie,4,3,Nein
+7.2.2026 15:23:36,P20,Gestensteuerung (Gesture) -> Sprachsteuerung (Voice) -> Kombinierte Steuerung (Voice + Gesture),24,Männlich,Ja,Seltener,1,1,Nein
+7.2.2026 15:51:42,P21,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),24,Männlich,Ja,Seltener,2,1,Nein
+7.2.2026 16:25:31,P22,Gestensteuerung (Gesture) -> Sprachsteuerung (Voice) -> Kombinierte Steuerung (Voice + Gesture),27,Weiblich,Ja,Seltener,2,1,Nein
+7.2.2026 16:52:31,P23,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),29,Männlich,Ja,Täglich,5,4,Nein
+7.2.2026 20:03:39,P13,Sprachsteuerung (Voice) -> Gestensteuerung (Gesture) -> Kombinierte Steuerung (Voice + Gesture),27,Männlich,Ja,Mehrmals pro Woche,4,1,Nein
