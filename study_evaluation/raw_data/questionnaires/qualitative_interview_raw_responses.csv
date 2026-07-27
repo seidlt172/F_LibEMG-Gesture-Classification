@@ -1,0 +1,98 @@
+Teilnehmer_ID,Positiv_Was_war_gut,Negativ_Was_war_schlecht,Modalitaet_im_realen_Leben_und_Begruendung
+P01,"Präferiert letzte Option. -> bietet sehr viele Freiheiten und es minimiert Unsicherheiten, verringert Fehlerquote aus Sicht der Testperson -> fand setup recht realistisch, selber gas geben und lenken, dadurch konnte man sich gut in die situation hineinversetzen","- eingeschränkte (nur voice, nur geste) varianten haben sie gestresst
+- das widget mit wechsel zum nachtmodus war etwas verwirrend, weil beide optionen gleichzeitig angezeigt wurden","- person würde eine kombination aus beiden nutzen
+- wenn es die möglichkeit gibt würde sie es verwenden
+- warum gut: manche aufgaben war mit sprache einfacher, manchmal war eine Geste schneller: Klarheit, Sicherheit gegenüber Schnelligkeit, Einfachheit
+- warum sprache deutlicher: geste hast du nur eine option und wenn es nicht richtig ist ist es nicht richtig, bei sprache hast du mehr optionen; im alltag läuft mehr über Sprache, deswegen würde sie sagen sie würde sich damit besser ausdrücken können
+- warum schlecht: du bist eingeschränkt, man hat keine ausweichmöglichkeit bei fehlern, hat die Person bisschen gestresst"
+P02,"Gut war die Option, dass man sich bei der letzten bedingung entscheiden kann. Manchmal hat sprache, manchmal geste besser funktioniert.
+- Widgets waren gut, dass angezeigt wurde, was man ungefähr sagen kann, damit es funktioniert.","- reaktionszeit (musste lange geste halten; bei sprache hat es relativ lange gedauert)
+- feedback hat gefehlt, dass der sprachbefehl registriert wird
+- rückfragen bei sprachassisten waren doof, weil er versucht hat das wording wie in dem Popup zu verwenden, hätte erwartet, dass das system damit umgehen kann. Rückfrage war nur ja nein frage, musste aber bestätigen durch ursprungsbefehl wiederholen","- Nutzen: im aktuellen Zustand nein, weil es zu lang gedauert hat, war bisschen anstrengend, musste auf den bilschirm schauen, hat sehr stark abgelenkt
+- Funktionen, wie musik skippen, am lenkrad knopf drücken einfacher als geste und sprache macht mehr sinn -> während telefonie macht spracheingabe für lautstärke kein sinn, weil es für die andere Person besser ist
+- würde wenn dann aber eher noch Sprache nutzen, für komplexere Sachen, oder auch bei mehreren Commands, dann gehts einfach schneller und der Fokus bleibt mehr auf der straße
+- Testsetup ist schwierig, fahren war nicht so leicht und es ist nicht so wie autofahren, spuren bisschen eng und sehr schnell
+- glaubt es gibt sehr wenige Anwendungsfälle, was so simpel ist, dass eine geste besser ist als die bestehenden Funktionen im Auto. Viele Optionen sind bereits im Lenkrad vorhanden, und man hat Feedback durch einen Tastendruck.
+- Bei autonomen fahren, wäre Geste eventuell mehr relevant, dann attraktiver als Touch, weil man sich nicht nach vorne beugen will."
+P03,,,"- nur Gestensteuerung ist komplexer, da ungewohnt aber eigentlich angenehm , stressig wenn sie nicht gut funktioniert wenn man Hand vom Lenkrad nehmen muss
+- manchmal unklar wie die Geste mit Daumen hoch funktioniert bei Annehmen und Ablehnen was ausgewählt wird
+- am besten wurde die Kombination empfunden"
+P04,- die Befehle waren klar,"- dieser Zwischenschritt mit doppelt bestätigen
+- Zeigen, da ist die Geste zu ungenau bzw die Abstände zu klein","- kein Fan von Gesten
+- schlechte Erfahrungen , oftmals falsche Ergebnisse
+- Gesten sind sehr ablenkend
+- anstrengend Gesten zu performen, eine Hand weg vom Lenkrad
+- Sprachsteuerung besser, kann sie unabhängig vom Fahren einsetzen
+- beim letzten Durchgang hat er beim Regulieren überlegt ob er doch Geste nehmen sollte, weil er findet dass es da passt (schnell und eindeutig) er hat aber trotzdem nur Sprache verwendet"
+P05,,"- Verzögerung der Displayänderung nach Sprach oder Gesteneingabe
+- da fehlt einfach etwas Feedback
+- der lila Kreis war verwirrend weil er mit Sprachsteuerung in Verbindung gebracht wird
+- generell schwierig sich auf die Straße zu konzentrieren und zugleich die Aufgaben zu erledigen, das erhöht die mentale Belastung","- Sprachsteuerung besser, da da die Hände am Lenkrad bleiben und man kann sich besser konzentrieren
+- “Hey Carla” ist nervig
+- kein Fan von Geste, wenn dann nur für kurze Sachen wie bestätigen mit Daumen hoch
+- die Gesten muss man halt auch lernen
+- Sprachsteuerung fand sie ganz gut
+- Kombination findet sie unnötig, da man meist eh eine Präferenz hat"
+P06,"- design war schön
+- man konnte selber entscheiden, ob geste oder voice nutzen","- ziemlich viel Text, bei sprachsteuerung wenn man das lesen musste, hat man einen Unfall gebaut
+- bei gestensteuerung musste man die Hand vom Lenkrad nehmen, fand das nicht so gut, hatte nicht das gefühl, dass man sich dadurch mehr auf s fahren konzentrieren kann
+- Sprachsteuerung fand sie doof, dass man immer davor hey carla sagen muss, war bisschen nervig -> Tribut an Unfall
+- Kein Sound feedback oder visual feedback bei Sprachsteuerung (garnicht oder kein Feedback)
+- Kein fan von Sprach oder Gestensteuerung","- würde es ungern nutzen, vielleicht noch Sprachsteuerung
+- glaubt aber dass man sich daran gewöhnen kann
+- Warum Sprachsteuerung: fühlt sich steuerbarer an, ist direct, bei gesten ist die geste recht unruhig und oft nicht richtig erkannt worden, wenn es lauter ist, wäre vielleicht geste aber doch sinnvoller
+- Im autonomen Kontext zögert lang mit der Antwort: dann ist die Wahl und bei gestensteuerung sieht er das als geringer, würde es aber trotzdem eher nicht nutzen
+- vielleicht wenn man es öfters ausprobiert, kann man sich dran gewöhnen und dann ist es gut?
+- mag das touchsche Feedback am liebsten"
+P07,- findet Option für beides sehr gut,- Fahren war sehr gewöhnungsbedürftig,"- würde Sprachsteuerung nutzen, benutzt sie auch jetzt schon im Auto
+- weniger interaktion bei Sprachsteuerung, lenkt weniger ab und ist einfacher beim Fahren
+- Bei gesten fehlt das physische feedback, wenn man schon mit den Händen interagiert, man hat zwar visuelles feedback aber das haptische fehlt dann
+- bei autonomen Fahren: wenn er schon seine hand bewegt und etwas physisches macht, dann kann er auch gleich einen knopf nutzen
+- Gesten sind aber theoretisch schneller mal gemacht als Sprache, auch tasten am lenkrad sind einfacher und schneller"
+P08,"- wechseln der Eingabe
+- Slider regulieren genauer mit Geste, wäre mit Sprache unpräziser
+- während Telefonat auch Geste gut
+- sehr eindeutige intuitive Gesten","- Sprache/Geste wurde ausgewählt weil Unsicherheit
+- Abnehmen war ihr die Geste nicht klar welche sie nehmen hätte sollen, deeshalb hat sie Sprache genommen
+- Sprachassistanz immer wieder nennen müssen","- Mal so mal so
+- Untermenü: Sprachsteuerung
+- wenns was ist was man einfach mit ner Geste machen kann dann Geste
+- wenn Gespräch im Auto würde sie Geste nehmen
+- je nach Situation"
+P09,"- sehr intuitive Gesten
+- die Kombination aus Sprache & Geste","- das Fahren an sich war sehr ungewohnt
+- die Radfahrer und anderen Autos haben etwas verwirrt","- eine Kombination je nach Situation
+- Gesten oftmals effizienter besonders für kleinere Tasks
+- Sprache war das Problem der Wakeup Call"
+P10,,,
+P11,"- beides (sprache und geste) am besten
+- man kann sich aussuchen was am besten gefällt oder am einfachsten ist
+- sprachsteuerung sicherer da beide hände am lenkrad
+- gestensteuerung geht schneller, man muss sich nicht wiederholen, schneller","- gesten anspruchsvoller
+- eine hand nicht am lenkrad
+- mehr überlegen welche geste für was
+- swipen = lenkrad im weg
+- nachfragen führen zu zusätzlicher anstrengung da man sie lesen muss","- beide gemischt
+- mehr auswahl und verschiedene möglichkeiten
+- würde sprachsteuerung bevorzugen, aber daumen hoch und lautstärke regeln generell schneller und einfacher
+- [Autonomes Fahren]: Gesten würden dann besser gehen, weil man mehr zeit hat es anzuzeigen; bei sprache nicht so viel unterschied, aber beim lesen würde man sich sicherer fühlen und wäre generell einfacher"
+P12,"- Gesten wurden gut erkannt
+- Gesten wurden besser als Sprache erkannt
+- Beides leicht verständlich","- musste bei Sprache manche Sachen mehrmals sagen
+- bei Geste einmal den Fall, dass sie nicht wusste wie man ablehnt (Daumen nach unten?, Swipen?)","- Gemischt
+- selbst entscheiden können was je nach Aufgabe und Kontext eingesetzt wird
+- situationsbedingt handeln können
+- manchmal war die Geste und manchmal die Sprache leichter"
+P13,"- Pure Spracherkennung war das beste
+- Gesture+Voice war gut, vor allem konnte User so auf Voice vertrauen & konnte sich so besser auf das Autofahren fokussieren","- User fand mit der Geste umständlich + parallel mit Auto fahren
+- gestikulieren hat viel mehr gestört als reden","- Voice am ehesten und vielleicht in Kombi mit Gesture
+- Niemals nur Gesture"
+P14,"- Pure Spracherkennung war das beste
+- UI und feedback loops bei unklarheiten, wurden als gut empfunden","- User fand mit der Geste umständlich + parallel mit Auto fahren
+- gestikulieren hat viel mehr gestört als reden",- Voice und haptische knöpfe
+P15,"- Die Kombination nutze ich bereits täglich in meinem bmw
+- UI und feedback loops bei unklarheiten, wurden als gut empfunden",,"- Voice, haptische Knöpfe + Gesten. Finde ich gut die Kombination."
+P16,- Sprache war sehr einfach für mich,"- Gestensteuerung benutze ich nicht so oft, daher war das sehr ungewohnt","- am liebsten Sprache, gesten können vlt einige wenige Befehle praktisch sein"
+P17,- Sprache und geste fand ich eigentlich gut zu nutzen,"- Ich habe nicht ganz verstanden, wann ich eine Geste wiederholen muss. Vorallem beim Song Vorschlag annehmen, musste ich mehrmals Wiederholen","- Ich kenne das bereits von meinem Auto, da benutze ich Gesten aber selten und am liebsten touch und nur in Situationen wo ich nicht hinschauen kann voice"
+P18,- gesten fand ich einfach auszuführen,"- Sprachsteuerung ist nicht so cool bei einem telefonat. Ich kann nicht auflegen, ohne das es die andere Person merkt.
+- Das Lenkrad war super leicht und ich hatte schwierigkeiten die Spur zu halten","- Sprache benutz ich oft im Auto für das Navi. Gesten kenn ich so noch garnicht, fand diese nach 4 Aufgaben schon bischen anstrengend, auch wenn sie Intuitiv waren"

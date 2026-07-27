@@ -1,4 +1,13 @@
-# EMG + Voice In-Car Interaction Prototype
+```text
+,------.,--.   ,--.       ,--.                                            ,-.   
+|  .---'|   `.'   | ,---. `--',--,--,  ,---.  ,---. ,--.--. ,---.     .--.'. \  
+|  `--, |  |'.'|  || .-. |,--.|      \| .-. :| .-. :|  .--'(  .-'     '--' |  | 
+|  `---.|  |   |  |' '-' '|  ||  ||  |\   --.\   --.|  |   .-'  `)    .--. |  | 
+`------'`--'   `--'.`-  / `--'`--''--' `----' `----'`--'   `----'     '--'.' /  
+                   `---'                                                  `-'   
+```
+
+# EMG + Voice In-Car Interaction Prototype (EMGineers)
 
 Research prototype for real-time EMG micro-gesture recognition and voice input in an automotive interaction context. The system uses a MindRove armband for EMG input, LibEMG for feature extraction/classification, local Whisper transcription for speech input, and local Ollama-based intent parsing.
 

@@ -23,6 +23,10 @@ All tables are saved in universally accessible, Git-friendly **CSV format** (UTF
 - **`round3_multimodal_nasatlx_sus.csv`**
   - Contains the NASA-TLX and SUS ratings for the final combined interaction modality tested in Round 3 (**Multimodal: Voice + Gesture**).
 
+### 4. Qualitative Interview Responses
+- **`qualitative_interview_raw_responses.csv`**
+  - Contains raw participant feedback and open-ended interview responses regarding modality preferences, ergonomic friction points (e.g., wake-word annoyance, visual display delays), and situational preferences in driving contexts.
+
 ---
 
 ## Questionnaire Item Mapping
